@@ -18,6 +18,7 @@ _PLOT_EXPORTS = {
     "plot_binned_spectrum",
     "plot_realizations",
     "plot_sample_distributions",
+    "plot_skymap",
 }
 
 _CONSTANT_EXPORTS = {

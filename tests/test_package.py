@@ -50,6 +50,7 @@ def test_plots_module_exports_helpers() -> None:
     assert "plot_binned_spectrum" in plots.__all__
     assert "plot_sample_distributions" in plots.__all__
     assert "plot_realizations" in plots.__all__
+    assert "plot_skymap" in plots.__all__
 
 
 def test_healpix_backend_selection() -> None:

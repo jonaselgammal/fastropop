@@ -1,11 +1,9 @@
 # Notebooks
 
-Place notebooks here once the migrated population code is stable enough to
-support reproducible, user-facing workflows.
+The notebooks in this directory are intended as short tutorial-style examples.
 
-Recommended future notebooks:
+Current notebooks:
 
-- `01_basic_population_sampling.ipynb`
-- `02_parameter_sweeps.ipynb`
-- `03_benchmark_vs_legacy.ipynb`
-
+- `semi-analytic.ipynb`: core semi-analytic population quantities and ensemble strain
+- `population-spectra.ipynb`: Poisson realizations and PTA-style spectrum binning
+- `skymaps.ipynb`: HEALPix skymap generation and visualization

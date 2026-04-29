@@ -115,4 +115,41 @@ def plot_realizations(log10f, yvals, median, q_low, q_high, freqs=None, hc2_valu
     plt.show()
 
 
-__all__ = ["plot_binned_spectrum", "plot_realizations", "plot_sample_distributions"]
+def plot_skymap(skymaps, freq_index=0, polarization="total", log_scale=False, title=None):
+    """Plot one HEALPix skymap slice for a selected frequency bin."""
+    try:
+        import healpy as hp
+    except ImportError as exc:  # pragma: no cover
+        raise ImportError("`healpy` is required for skymap plotting.") from exc
+
+    skymaps = np.asarray(skymaps)
+
+    if skymaps.ndim == 3:
+        if skymaps.shape[0] != 2:
+            raise ValueError("Stacked skymaps must have shape (2, npix, n_frequencies).")
+        if polarization == "total":
+            map_slice = np.sqrt(
+                np.abs(skymaps[0, :, freq_index]) ** 2 + np.abs(skymaps[1, :, freq_index]) ** 2
+            )
+        elif polarization == "plus":
+            map_slice = np.abs(skymaps[0, :, freq_index])
+        elif polarization == "cross":
+            map_slice = np.abs(skymaps[1, :, freq_index])
+        else:
+            raise ValueError("polarization must be one of {'total', 'plus', 'cross'}.")
+    elif skymaps.ndim == 2:
+        map_slice = np.abs(skymaps[:, freq_index])
+    else:
+        raise ValueError("skymaps must have shape (npix, n_frequencies) or (2, npix, n_frequencies).")
+
+    if log_scale:
+        map_slice = np.log10(np.maximum(map_slice, np.finfo(float).tiny))
+
+    if title is None:
+        scale_label = "log10 amplitude" if log_scale else "amplitude"
+        title = f"{polarization.capitalize()} skymap, bin {freq_index} ({scale_label})"
+
+    hp.mollview(map_slice, title=title, hold=False)
+
+
+__all__ = ["plot_binned_spectrum", "plot_realizations", "plot_sample_distributions", "plot_skymap"]
