@@ -183,7 +183,7 @@ def binning_jitted(distM, distz, distlog10f, bin_edges):
         Sum of f*h^2 in each bin
     """
     f_vals = 10**distlog10f
-    h_vals = h(distM * kg, f_vals / s, distz)
+    h_vals = h_average(distM * kg, f_vals / s, distz)
     h2_vals = f_vals * h_vals**2
 
     # Use JAX's digitize for binning
@@ -861,15 +861,15 @@ class SemiAnalyticPopulation:
 
         return skymaps_tot, skymaps_plus, skymaps_cross
 
-    def compute_many_realizations(self, Nbinaries, nrealizations=100, freqs=None,
+    def compute_many_realizations(self, Nbinaries_mean, nrealizations=100, freqs=None,
                                   hc2_values=None, do_plot=True, key=None):
         """
         Compute many Monte Carlo realizations of the GW spectrum.
 
         Parameters
         ----------
-        Nbinaries : int
-            Number of binaries per realization
+        Nbinaries_mean : int or float
+            Mean number of binaries used for the Poisson draw in each realization
         nrealizations : int, optional
             Number of realizations to perform
         freqs : array, optional
@@ -900,7 +900,7 @@ class SemiAnalyticPopulation:
 
         for _ in range(nrealizations):
             key, key_poisson, key_sample = jax.random.split(key, 3)
-            Nbinaries_sample = int(jax.random.poisson(key_poisson, lam=Nbinaries))
+            Nbinaries_sample = int(jax.random.poisson(key_poisson, lam=Nbinaries_mean))
             distM, distz, distlog10f = self.sample_dist(Nbinaries_sample, do_plot=False, key=key_sample)
             Spec = binning(distM, distz, distlog10f, do_plot=False)
             Spec_transformed = jnp.column_stack((Spec[:, 0], jnp.log10(jnp.sqrt(Spec[:, 1]))))
