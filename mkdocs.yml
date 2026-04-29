@@ -6,6 +6,8 @@ repo_name: jonaselgammal/fastropop
 
 theme:
   name: material
+  logo: img/fastropop-emblem-transparent.png
+  favicon: img/fastropop-emblem-transparent.png
   features:
     - navigation.sections
     - navigation.top
