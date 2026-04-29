@@ -6,19 +6,19 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 from jax import jit
-from scipy.integrate import quad, nquad
+from scipy.integrate import nquad, quad
 from scipy.interpolate import CubicSpline
 
 from .constants import (
     GMKS,
+    TNG15,
     Mmax,
     Mmin,
     MsunMKS,
-    TNG15,
     cMKS,
-    default_Mstar,
     default_alphaM,
     default_betaz,
+    default_Mstar,
     default_n0,
     default_z0,
     fmaxNG15,
@@ -34,15 +34,15 @@ from .constants import (
 )
 from .cosmology import (
     DL,
+    EE,
     Dc_interp,
     Dc_interp_numpy,
-    EE,
     H0s,
     OmegaDM,
-    OmegaLambda,
     Omegak,
-    dVcdz,
+    OmegaLambda,
     dtodz,
+    dVcdz,
 )
 from .healpix_backend import accumulate_skymap_batch, init_skymaps, nside2npix, require_backend
 from .units import hc_to_omega, omega_to_hc
@@ -62,17 +62,23 @@ def _coerce_key(key):
 @jit
 def dlnfdtr(M, f, z):
     """Compute the frequency evolution term d(ln f)/dt_r."""
-    return (96 / 5) * jnp.pi ** (8 / 3) * (M * GMKS) ** (5 / 3) * (f * (1 + z)) ** (8 / 3) * cMKS**(-5)
+    return (
+        (96 / 5)
+        * jnp.pi ** (8 / 3)
+        * (M * GMKS) ** (5 / 3)
+        * (f * (1 + z)) ** (8 / 3)
+        * cMKS ** (-5)
+    )
 
 
 @jit
 def h(M, f, z):
     """Compute the gravitational wave strain amplitude."""
     return (
-        (4 * jnp.pi**(2/3))
-        * (GMKS * M)**(5/3)
+        (4 * jnp.pi ** (2 / 3))
+        * (GMKS * M) ** (5 / 3)
         / (cMKS**4 * Dc_interp(z))
-        * (f * (1+z))**(2/3)
+        * (f * (1 + z)) ** (2 / 3)
     )
 
 
@@ -80,20 +86,23 @@ def h(M, f, z):
 def h_average(M, f, z):
     """Compute the sky and polarization averaged strain amplitude."""
     return (
-        (8 * jnp.pi**(2/3) / jnp.sqrt(10))
-        * (GMKS * M)**(5/3)
+        (8 * jnp.pi ** (2 / 3) / jnp.sqrt(10))
+        * (GMKS * M) ** (5 / 3)
         / (cMKS**4 * Dc_interp(z))
-        * (f * (1+z))**(2/3)
+        * (f * (1 + z)) ** (2 / 3)
     )
+
 
 def draw_parameters(param_ranges=None, key=None):
     """Draw one random parameter set from posterior ranges using JAX RNG."""
     if param_ranges is None:
         param_ranges = {
-            "n0": [10**(-7.82) / ((1e6 * pc * pcinMKS)**3 * (1e9 * yr * yrinMKS)),
-                   10**(0.96) / ((1e6 * pc * pcinMKS)**3 * (1e9 * yr * yrinMKS))],
+            "n0": [
+                10 ** (-7.82) / ((1e6 * pc * pcinMKS) ** 3 * (1e9 * yr * yrinMKS)),
+                10 ** (0.96) / ((1e6 * pc * pcinMKS) ** 3 * (1e9 * yr * yrinMKS)),
+            ],
             "alphaM": [-2.75, 2.71],
-            "Mstar": [10**(6.14) * MsunMKS, 10**(8.84) * MsunMKS],
+            "Mstar": [10 ** (6.14) * MsunMKS, 10 ** (8.84) * MsunMKS],
             "betaz": [-1.57, 6.51],
             "z0": [0.44, 4.77],
         }
@@ -230,7 +239,7 @@ def binning(distM, distz, distlog10f, freqs=None, hc2_values=None, do_plot=True)
     )
     bin_edges_log10 = jnp.log10(bin_edges_linear)
     bin_edges = jnp.concatenate((jnp.array([bin_edges_linear[0, 0]]), bin_edges_linear[:, 1]))
-    bin_centers_log10 = jnp.log10((10**bin_edges_log10[:, 0] + 10**bin_edges_log10[:, 1]) / 2)
+    bin_centers_log10 = jnp.log10((10 ** bin_edges_log10[:, 0] + 10 ** bin_edges_log10[:, 1]) / 2)
 
     binned_sum = jnp.asarray(
         binning_jitted(
@@ -257,6 +266,7 @@ def binning(distM, distz, distlog10f, freqs=None, hc2_values=None, do_plot=True)
 # Main Population Class
 # =============================================================================
 
+
 class SemiAnalyticPopulation:
     """
     Semi-analytical population model for supermassive black hole binaries.
@@ -278,10 +288,9 @@ class SemiAnalyticPopulation:
         Characteristic redshift scale
     """
 
-    def __init__(self, population_params=None,
-                 integration_limits=None,
-                 sampling_grids=None,
-                 PTA_params=None):
+    def __init__(
+        self, population_params=None, integration_limits=None, sampling_grids=None, PTA_params=None
+    ):
         """Initialize the population model with specified parameters."""
         population_params = {} if population_params is None else population_params
         integration_limits = {} if integration_limits is None else integration_limits
@@ -289,25 +298,22 @@ class SemiAnalyticPopulation:
         PTA_params = {} if PTA_params is None else PTA_params
 
         # Set population parameters
-        self.n0 = population_params.get('n0', default_n0)
-        self.alphaM = population_params.get('alphaM', default_alphaM)
-        self.Mstar = population_params.get('Mstar', default_Mstar)
-        self.betaz = population_params.get('betaz', default_betaz)
-        self.z0 = population_params.get('z0', default_z0)
+        self.n0 = population_params.get("n0", default_n0)
+        self.alphaM = population_params.get("alphaM", default_alphaM)
+        self.Mstar = population_params.get("Mstar", default_Mstar)
+        self.betaz = population_params.get("betaz", default_betaz)
+        self.z0 = population_params.get("z0", default_z0)
 
         # Set integration limits
-        self.Mbounds = integration_limits.get('Mbounds', [Mmin/kg, Mmax/kg])
-        self.zbounds = integration_limits.get('zbounds', [zmin, zmax])
-        self.fbounds = integration_limits.get('fbounds', [fminNG15*s, fmaxNG15*s])
+        self.Mbounds = integration_limits.get("Mbounds", [Mmin / kg, Mmax / kg])
+        self.zbounds = integration_limits.get("zbounds", [zmin, zmax])
+        self.fbounds = integration_limits.get("fbounds", [fminNG15 * s, fmaxNG15 * s])
 
         # Set sampling grids
-        self.Mgrid = sampling_grids.get('Mgrid', 
-                                        np.geomspace(Mmin/kg, Mmax/kg, 3000))
-        self.zgrid = sampling_grids.get('zgrid', 
-                                        np.linspace(zmin, zmax, 1500))
-        self.fgrid = sampling_grids.get('fgrid', 
-                                        np.geomspace(fminNG15*s, fmaxNG15*s, 2000))
-        
+        self.Mgrid = sampling_grids.get("Mgrid", np.geomspace(Mmin / kg, Mmax / kg, 3000))
+        self.zgrid = sampling_grids.get("zgrid", np.linspace(zmin, zmax, 1500))
+        self.fgrid = sampling_grids.get("fgrid", np.geomspace(fminNG15 * s, fmaxNG15 * s, 2000))
+
         # Check that the bounds and the grids cover the same ranges, otherwise warn the user
         if (self.Mbounds[0] != self.Mgrid[0]) or (self.Mbounds[1] != self.Mgrid[-1]):
             print("Warning: Mass bounds and mass grid do not cover the same range.")
@@ -317,12 +323,12 @@ class SemiAnalyticPopulation:
             print("Warning: Frequency bounds and frequency grid do not cover the same range.")
 
         # Set PTA parameters
-        self.Tobs = PTA_params.get('Tobs', TNG15)  # Observation time in seconds
-        self.fmin = PTA_params.get('fmin', fminNG15)  # Minimum frequency in Hz
-        self.fmax = PTA_params.get('fmax', fmaxNG15)  # Maximum frequency in Hz
-        self.Nfreqs = PTA_params.get('Nfreqs', 14)  # Number of frequency bins
+        self.Tobs = PTA_params.get("Tobs", TNG15)  # Observation time in seconds
+        self.fmin = PTA_params.get("fmin", fminNG15)  # Minimum frequency in Hz
+        self.fmax = PTA_params.get("fmax", fmaxNG15)  # Maximum frequency in Hz
+        self.Nfreqs = PTA_params.get("Nfreqs", 14)  # Number of frequency bins
         self.PTA_frequencies = np.geomspace(self.fmin, self.fmax, self.Nfreqs)
-        
+
         # Initialize mean number of binaries
         self.Nbinaries_mean = None  # To be set after integration
 
@@ -366,9 +372,12 @@ class SemiAnalyticPopulation:
         float
             Number density in Mpc^-3
         """
-        integrand = lambda z: M * np.log(10) * self._d2ndzdM_numpy(z, M)
+
+        def integrand(z):
+            return M * np.log(10) * self._d2ndzdM_numpy(z, M)
+
         result, _ = quad(integrand, zmin, zmax)
-        return (1e6 * pc * pcinMKS)**3 * result
+        return (1e6 * pc * pcinMKS) ** 3 * result
 
     def d3ndzdMdlnf(self, M, f, z):
         """
@@ -388,17 +397,14 @@ class SemiAnalyticPopulation:
         float or array
             3D differential number density
         """
-        return (
-            self.d2ndzdM(z, M)
-            * dlnfdtr(M, f, z)**(-1)
-            * (dtodz(z))**(-1)
-            * dVcdz(z)
-        )
+        return self.d2ndzdM(z, M) * dlnfdtr(M, f, z) ** (-1) * (dtodz(z)) ** (-1) * dVcdz(z)
 
     def _integrand(self, M, z, f):
         """Compute the integrand for the characteristic strain spectrum."""
         prefactor = (4 * GMKS ** (5 / 3)) / (3 * jnp.pi ** (1 / 3) * cMKS**2)
-        return prefactor * f**(-4/3) * (1 + z)**(-1/3) * M**(5/3) * self.d2ndzdM(z, M * kg)
+        return (
+            prefactor * f ** (-4 / 3) * (1 + z) ** (-1 / 3) * M ** (5 / 3) * self.d2ndzdM(z, M * kg)
+        )
 
     def _integrand_log(self, x, z, f):
         """Compute the integrand in log10(M) space."""
@@ -427,7 +433,13 @@ class SemiAnalyticPopulation:
 
     def _dlnfdtr_numpy(self, M, f, z):
         """NumPy scalar helper for SciPy integration paths."""
-        return (96 / 5) * np.pi ** (8 / 3) * (M * GMKS) ** (5 / 3) * (f * (1 + z)) ** (8 / 3) * cMKS**(-5)
+        return (
+            (96 / 5)
+            * np.pi ** (8 / 3)
+            * (M * GMKS) ** (5 / 3)
+            * (f * (1 + z)) ** (8 / 3)
+            * cMKS ** (-5)
+        )
 
     def _d3ndzdMdlnf_numpy(self, M, f, z):
         """NumPy scalar helper for SciPy integration paths."""
@@ -441,7 +453,13 @@ class SemiAnalyticPopulation:
     def _integrand_numpy(self, M, z, f):
         """NumPy scalar helper for characteristic-strain integration."""
         prefactor = (4 * GMKS ** (5 / 3)) / (3 * np.pi ** (1 / 3) * cMKS**2)
-        return prefactor * f ** (-4 / 3) * (1 + z) ** (-1 / 3) * M ** (5 / 3) * self._d2ndzdM_numpy(z, M * kg)
+        return (
+            prefactor
+            * f ** (-4 / 3)
+            * (1 + z) ** (-1 / 3)
+            * M ** (5 / 3)
+            * self._d2ndzdM_numpy(z, M * kg)
+        )
 
     def _integrand_log_numpy(self, x, z, f):
         """NumPy scalar helper in log10(M) space."""
@@ -469,14 +487,11 @@ class SemiAnalyticPopulation:
             return self._integrand_log_numpy(x, z, ff)
 
         result, _ = nquad(
-            integrand_nquad,
-            [[zmin, zmax], [x_min, x_max]],
-            opts={'epsabs':1e-8, 'epsrel':1e-6}
+            integrand_nquad, [[zmin, zmax], [x_min, x_max]], opts={"epsabs": 1e-8, "epsrel": 1e-6}
         )
         return result
 
-    def compute_Nbinaries(self, Mbounds=None, zbounds=None, fbounds=None,
-                          verbose=False):
+    def compute_Nbinaries(self, Mbounds=None, zbounds=None, fbounds=None, verbose=False):
         """
         Integrate to find the total number of binaries.
 
@@ -505,14 +520,20 @@ class SemiAnalyticPopulation:
         result, _ = nquad(
             integrand,
             [np.log10(fbounds), zbounds, Mbounds],
-            opts={"epsabs": 1e-6, "epsrel": 1e-4}
+            opts={"epsabs": 1e-6, "epsrel": 1e-4},
         )
         self.Nbinaries_mean = result
         if verbose:
             print(f"[compute_Nbinaries] Total number of binaries: {result:.3e}")
         return result
-    
-    def generate_poisson_realization(self, Nrealizations=1, Nbinaries_mean=None, key=None, verbose=False):
+
+    def generate_poisson_realization(
+        self,
+        Nrealizations=1,
+        Nbinaries_mean=None,
+        key=None,
+        verbose=False,
+    ):
         """
         Generate a Poisson realization of the number of binaries.
 
@@ -533,7 +554,10 @@ class SemiAnalyticPopulation:
         """
         if Nbinaries_mean is None:
             if self.Nbinaries_mean is None:
-                raise ValueError("[generate_poisson_realization] Nbinaries_mean is not set. Please compute it first.")
+                raise ValueError(
+                    "[generate_poisson_realization] Nbinaries_mean is not set. "
+                    "Please compute it first."
+                )
             Nbinaries_mean = self.Nbinaries_mean
 
         realized_Nbinaries = jax.random.poisson(
@@ -542,7 +566,9 @@ class SemiAnalyticPopulation:
             shape=(Nrealizations,),
         )
         if verbose:
-            print(f"[generate_poisson_realization] Realized number of binaries: {realized_Nbinaries}")
+            print(
+                f"[generate_poisson_realization] Realized number of binaries: {realized_Nbinaries}"
+            )
         return realized_Nbinaries
 
     def _prepare_sampling_distributions(self, Mgrid=None, zgrid=None, fgrid=None):
@@ -559,7 +585,7 @@ class SemiAnalyticPopulation:
         #########################
         Mgrid = self.Mgrid if Mgrid is None else Mgrid
 
-        pdfM = kg * self.d3ndzdMdlnf(Mgrid * kg, 10**-8.75/s, 1)
+        pdfM = kg * self.d3ndzdMdlnf(Mgrid * kg, 10**-8.75 / s, 1)
         splineM = CubicSpline(Mgrid, pdfM)
         normM = splineM.integrate(Mgrid[0], Mgrid[-1])
         pdfM /= normM
@@ -572,7 +598,7 @@ class SemiAnalyticPopulation:
         ############################
         zgrid = self.zgrid if zgrid is None else zgrid
 
-        pdfz = 1e80 * kg * self.d3ndzdMdlnf(1e9 * MsunMKS, 10**-8.75/s, zgrid)
+        pdfz = 1e80 * kg * self.d3ndzdMdlnf(1e9 * MsunMKS, 10**-8.75 / s, zgrid)
 
         splineZ = CubicSpline(zgrid, pdfz)
         normZ = splineZ.integrate(zgrid[0], zgrid[-1])
@@ -586,7 +612,7 @@ class SemiAnalyticPopulation:
         #############################
         fgrid = self.fgrid if fgrid is None else fgrid
 
-        pdflogf = (np.log(10)) * kg * self.d3ndzdMdlnf(1e9 * MsunMKS, fgrid/s, 1)
+        pdflogf = (np.log(10)) * kg * self.d3ndzdMdlnf(1e9 * MsunMKS, fgrid / s, 1)
 
         splineF = CubicSpline(np.log10(fgrid), pdflogf)
         normF = splineF.integrate(np.log10(fgrid[0]), np.log10(fgrid[-1]))
@@ -606,7 +632,14 @@ class SemiAnalyticPopulation:
 
     def _sample_batch_from_distributions(self, current_batch_size, key_sample, distributions):
         """Sample one batch of masses, redshifts, and frequencies from cached CDFs."""
-        Mgrid_jax, cdfM_jax, zgrid_jax, cdfz_jax, fgrid_log10_jax, cdflogf_jax = distributions
+        (
+            Mgrid_jax,
+            cdfM_jax,
+            zgrid_jax,
+            cdfz_jax,
+            fgrid_log10_jax,
+            cdflogf_jax,
+        ) = distributions
         key_M, key_z, key_f = jax.random.split(key_sample, 3)
         uM = jax.random.uniform(key_M, shape=(current_batch_size,))
         uz = jax.random.uniform(key_z, shape=(current_batch_size,))
@@ -619,13 +652,23 @@ class SemiAnalyticPopulation:
     def _sample_sky_orientations(self, current_batch_size, key_sky):
         """Sample isotropic sky positions and source orientations."""
         key_phi, key_theta, key_iota, key_phi0, key_psi = jax.random.split(key_sky, 5)
-        phi = jax.random.uniform(key_phi, shape=(current_batch_size,), minval=0, maxval=2 * jnp.pi)
+        phi = jax.random.uniform(
+            key_phi,
+            shape=(current_batch_size,),
+            minval=0,
+            maxval=2 * jnp.pi,
+        )
         cos_theta = jax.random.uniform(key_theta, shape=(current_batch_size,), minval=-1, maxval=1)
         theta = jnp.arccos(cos_theta)
         iota = jnp.arccos(
             jax.random.uniform(key_iota, shape=(current_batch_size,), minval=-1, maxval=1)
         )
-        phi0 = jax.random.uniform(key_phi0, shape=(current_batch_size,), minval=0, maxval=2 * jnp.pi)
+        phi0 = jax.random.uniform(
+            key_phi0,
+            shape=(current_batch_size,),
+            minval=0,
+            maxval=2 * jnp.pi,
+        )
         psi = jax.random.uniform(key_psi, shape=(current_batch_size,), minval=0, maxval=jnp.pi)
         return theta, phi, iota, phi0, psi
 
@@ -666,7 +709,15 @@ class SemiAnalyticPopulation:
             hbar_cross_rot,
         )
 
-    def sample_dist(self, Nbinaries=None, Mgrid=None, zgrid=None, fgrid=None, do_plot=False, key=None):
+    def sample_dist(
+        self,
+        Nbinaries=None,
+        Mgrid=None,
+        zgrid=None,
+        fgrid=None,
+        do_plot=False,
+        key=None,
+    ):
         """
         Sample mass, redshift, and frequency distributions for a population of binaries.
 
@@ -697,13 +748,19 @@ class SemiAnalyticPopulation:
         """
         if Nbinaries is None:
             if self.Nbinaries_mean is None:
-                raise ValueError("[sample_dist] Nbinaries_mean is not set. Please compute it first.")
+                raise ValueError(
+                    "[sample_dist] Nbinaries_mean is not set. Please compute it first."
+                )
             Nbinaries = int(self.Nbinaries_mean)
 
         key = _coerce_key(key)
 
         distributions = self._prepare_sampling_distributions(Mgrid, zgrid, fgrid)
-        distM, distz, distlog10f = self._sample_batch_from_distributions(Nbinaries, key, distributions)
+        distM, distz, distlog10f = self._sample_batch_from_distributions(
+            Nbinaries,
+            key,
+            distributions,
+        )
 
         if do_plot:
             Mgrid_jax, _, zgrid_jax, _, fgrid_log10_jax, _ = distributions
@@ -712,13 +769,21 @@ class SemiAnalyticPopulation:
             zgrid_plot = np.asarray(zgrid_jax)
             fgrid_log10_plot = np.asarray(fgrid_log10_jax)
 
-            pdfM_plot = kg * self.d3ndzdMdlnf(Mgrid_plot * kg, 10**-8.75/s, 1)
+            pdfM_plot = kg * self.d3ndzdMdlnf(Mgrid_plot * kg, 10**-8.75 / s, 1)
             pdfM_plot /= np.trapezoid(pdfM_plot, Mgrid_plot)
 
-            pdfz_plot = 1e80 * kg * self.d3ndzdMdlnf(1e9 * MsunMKS, 10**-8.75/s, zgrid_plot)
+            pdfz_plot = 1e80 * kg * self.d3ndzdMdlnf(1e9 * MsunMKS, 10**-8.75 / s, zgrid_plot)
             pdfz_plot /= np.trapezoid(pdfz_plot, zgrid_plot)
 
-            pdflogf_plot = (np.log(10)) * kg * self.d3ndzdMdlnf(1e9 * MsunMKS, 10**fgrid_log10_plot/s, 1)
+            pdflogf_plot = (
+                (np.log(10))
+                * kg
+                * self.d3ndzdMdlnf(
+                    1e9 * MsunMKS,
+                    10**fgrid_log10_plot / s,
+                    1,
+                )
+            )
             pdflogf_plot /= np.trapezoid(pdflogf_plot, fgrid_log10_plot)
 
             from .plots import plot_sample_distributions
@@ -737,10 +802,18 @@ class SemiAnalyticPopulation:
 
         return distM, distz, distlog10f
 
-    def generate_skymaps(self, Nbinaries=None, PTA_frequencies=None,
-                                 Mgrid=None, zgrid=None, fgrid=None,
-                                 Nside=16,
-                                 batch_size=int(1e7), verbose=False, key=None):
+    def generate_skymaps(
+        self,
+        Nbinaries=None,
+        PTA_frequencies=None,
+        Mgrid=None,
+        zgrid=None,
+        fgrid=None,
+        Nside=16,
+        batch_size=int(1e7),
+        verbose=False,
+        key=None,
+    ):
         """
         Generate HEALPix skymaps by processing sources in batches.
 
@@ -782,7 +855,9 @@ class SemiAnalyticPopulation:
         """
         if Nbinaries is None:
             if self.Nbinaries_mean is None:
-                raise ValueError("[generate_skymaps] Nbinaries_mean is not set. Please compute it first.")
+                raise ValueError(
+                    "[generate_skymaps] Nbinaries_mean is not set. Please compute it first."
+                )
             Nbinaries = int(self.Nbinaries_mean)
         key = _coerce_key(key)
         require_backend()
@@ -799,7 +874,10 @@ class SemiAnalyticPopulation:
         num_batches = int(np.ceil(Nbinaries / batch_size))
 
         if verbose:
-            print(f"[generate_skymaps] Generating skymaps with {Nbinaries} sources in {num_batches} batches")
+            print(
+                "[generate_skymaps] Generating skymaps with "
+                f"{Nbinaries} sources in {num_batches} batches"
+            )
             print(f"[generate_skymaps] Nside={Nside}, npix={npix}, n_frequencies={n_freq}")
 
         # Prepare sampling distributions once (for efficiency)
@@ -812,7 +890,10 @@ class SemiAnalyticPopulation:
             current_batch_size = min(batch_size, Nbinaries - sources_processed)
 
             if verbose:
-                print(f"[generate_skymaps] Batch {batch_idx + 1}/{num_batches}: Processing {current_batch_size} sources...")
+                print(
+                    f"[generate_skymaps] Batch {batch_idx + 1}/{num_batches}: "
+                    f"Processing {current_batch_size} sources..."
+                )
 
             key, key_sample, key_sky = jax.random.split(key, 3)
 
@@ -830,7 +911,12 @@ class SemiAnalyticPopulation:
             theta, phi, iota, phi0, psi = self._sample_sky_orientations(current_batch_size, key_sky)
 
             # 4. Compute polarization amplitudes (JIT-compiled operations)
-            hbar_plus_rot, hbar_cross_rot = self._compute_rotated_polarizations(h_vals, iota, phi0, psi)
+            hbar_plus_rot, hbar_cross_rot = self._compute_rotated_polarizations(
+                h_vals,
+                iota,
+                phi0,
+                psi,
+            )
 
             # 5. Assign to frequency bins and add to skymaps
             freq_indices = self._assign_frequency_bins(f_vals, PTA_frequencies_jax)
@@ -849,7 +935,9 @@ class SemiAnalyticPopulation:
             sources_processed += current_batch_size
 
             if verbose:
-                print(f"[generate_skymaps] Total sources processed: {sources_processed}/{Nbinaries}")
+                print(
+                    f"[generate_skymaps] Total sources processed: {sources_processed}/{Nbinaries}"
+                )
 
         # Combine into final format
         skymaps_plus = jnp.asarray(skymaps_plus)
@@ -861,8 +949,15 @@ class SemiAnalyticPopulation:
 
         return skymaps_tot, skymaps_plus, skymaps_cross
 
-    def compute_many_realizations(self, Nbinaries_mean, nrealizations=100, freqs=None,
-                                  hc2_values=None, do_plot=True, key=None):
+    def compute_many_realizations(
+        self,
+        Nbinaries_mean,
+        nrealizations=100,
+        freqs=None,
+        hc2_values=None,
+        do_plot=True,
+        key=None,
+    ):
         """
         Compute many Monte Carlo realizations of the GW spectrum.
 
@@ -901,7 +996,11 @@ class SemiAnalyticPopulation:
         for _ in range(nrealizations):
             key, key_poisson, key_sample = jax.random.split(key, 3)
             Nbinaries_sample = int(jax.random.poisson(key_poisson, lam=Nbinaries_mean))
-            distM, distz, distlog10f = self.sample_dist(Nbinaries_sample, do_plot=False, key=key_sample)
+            distM, distz, distlog10f = self.sample_dist(
+                Nbinaries_sample,
+                do_plot=False,
+                key=key_sample,
+            )
             Spec = binning(distM, distz, distlog10f, do_plot=False)
             Spec_transformed = jnp.column_stack((Spec[:, 0], jnp.log10(jnp.sqrt(Spec[:, 1]))))
             tabreal.append(Spec_transformed)
@@ -916,7 +1015,6 @@ class SemiAnalyticPopulation:
         q_high = jnp.quantile(yvals, (1 + 0.68) / 2, axis=0)
 
         if do_plot:
-
             from .plots import plot_realizations
 
             plot_realizations(

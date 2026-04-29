@@ -1,20 +1,18 @@
+from importlib.util import find_spec
+
 import jax
 import jax.numpy as jnp
 import pytest
-from importlib.util import find_spec
 
 import fastropop
-from fastropop import cosmology
-from fastropop import healpix_backend
-from fastropop import plots
-from fastropop import units
+from fastropop import cosmology, healpix_backend, plots, units
 from fastropop.semi_analytic import (
     SemiAnalyticPopulation,
     binning,
     compute_h,
     dlnfdtr,
-    h,
     draw_parameters,
+    h,
     h_average,
 )
 
@@ -79,9 +77,17 @@ def test_compute_h_returns_jax_array() -> None:
 def test_sample_dist_returns_jax_arrays_with_finite_values() -> None:
     pop = SemiAnalyticPopulation(
         sampling_grids={
-            "Mgrid": jnp.geomspace(fastropop.Mmin / fastropop.kg, fastropop.Mmax / fastropop.kg, 32),
+            "Mgrid": jnp.geomspace(
+                fastropop.Mmin / fastropop.kg,
+                fastropop.Mmax / fastropop.kg,
+                32,
+            ),
             "zgrid": jnp.linspace(fastropop.zmin, fastropop.zmax, 24),
-            "fgrid": jnp.geomspace(fastropop.fminNG15 * fastropop.s, fastropop.fmaxNG15 * fastropop.s, 32),
+            "fgrid": jnp.geomspace(
+                fastropop.fminNG15 * fastropop.s,
+                fastropop.fmaxNG15 * fastropop.s,
+                32,
+            ),
         }
     )
     distM, distz, distlog10f = pop.sample_dist(Nbinaries=8, key=0)
@@ -131,7 +137,7 @@ def test_notebook_reference_formulas_match_package() -> None:
     params = {
         "n0": 10**-90.4153,
         "alphaM": -1.3800,
-        "Mstar": 10 ** 8.8272 * fastropop.MsunMKS,
+        "Mstar": 10**8.8272 * fastropop.MsunMKS,
         "betaz": -0.1711,
         "z0": 4.70,
     }
@@ -156,7 +162,9 @@ def test_notebook_reference_formulas_match_package() -> None:
         / (fastropop.cMKS**4 * cosmology.Dc_interp(z))
         * (f * (1 + z)) ** (2 / 3)
     )
-    expected_d3 = expected_d2 * dlnfdtr(M, f, z) ** (-1) * cosmology.dtodz(z) ** (-1) * cosmology.dVcdz(z)
+    expected_d3 = (
+        expected_d2 * dlnfdtr(M, f, z) ** (-1) * cosmology.dtodz(z) ** (-1) * cosmology.dVcdz(z)
+    )
 
     assert jnp.allclose(pop.d2ndzdM(z, M), expected_d2)
     assert jnp.allclose(h_average(M, f, z), expected_h)
@@ -167,15 +175,23 @@ def test_notebook_reference_formulas_match_package() -> None:
 def test_generate_skymaps_is_deterministic_with_fixed_key_and_valid_with_none() -> None:
     pop = SemiAnalyticPopulation(
         sampling_grids={
-            "Mgrid": jnp.geomspace(fastropop.Mmin / fastropop.kg, fastropop.Mmax / fastropop.kg, 32),
+            "Mgrid": jnp.geomspace(
+                fastropop.Mmin / fastropop.kg,
+                fastropop.Mmax / fastropop.kg,
+                32,
+            ),
             "zgrid": jnp.linspace(fastropop.zmin, fastropop.zmax, 24),
-            "fgrid": jnp.geomspace(fastropop.fminNG15 * fastropop.s, fastropop.fmaxNG15 * fastropop.s, 32),
+            "fgrid": jnp.geomspace(
+                fastropop.fminNG15 * fastropop.s,
+                fastropop.fmaxNG15 * fastropop.s,
+                32,
+            ),
         },
         PTA_params={"Nfreqs": 4},
     )
     skymaps_1 = pop.generate_skymaps(Nbinaries=6, Nside=1, batch_size=3, key=0)
     skymaps_2 = pop.generate_skymaps(Nbinaries=6, Nside=1, batch_size=3, key=0)
-    for arr_1, arr_2 in zip(skymaps_1, skymaps_2):
+    for arr_1, arr_2 in zip(skymaps_1, skymaps_2, strict=True):
         assert isinstance(jnp.asarray(arr_1), jax.Array)
         assert arr_1.shape == arr_2.shape
         assert jnp.allclose(jnp.asarray(arr_1), jnp.asarray(arr_2))
@@ -189,9 +205,17 @@ def test_generate_skymaps_is_deterministic_with_fixed_key_and_valid_with_none() 
 def test_generate_skymaps_small_batch_pipeline_shapes() -> None:
     pop = SemiAnalyticPopulation(
         sampling_grids={
-            "Mgrid": jnp.geomspace(fastropop.Mmin / fastropop.kg, fastropop.Mmax / fastropop.kg, 16),
+            "Mgrid": jnp.geomspace(
+                fastropop.Mmin / fastropop.kg,
+                fastropop.Mmax / fastropop.kg,
+                16,
+            ),
             "zgrid": jnp.linspace(fastropop.zmin, fastropop.zmax, 16),
-            "fgrid": jnp.geomspace(fastropop.fminNG15 * fastropop.s, fastropop.fmaxNG15 * fastropop.s, 16),
+            "fgrid": jnp.geomspace(
+                fastropop.fminNG15 * fastropop.s,
+                fastropop.fmaxNG15 * fastropop.s,
+                16,
+            ),
         },
         PTA_params={"Nfreqs": 3},
     )

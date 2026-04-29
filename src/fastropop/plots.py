@@ -140,7 +140,9 @@ def plot_skymap(skymaps, freq_index=0, polarization="total", log_scale=False, ti
     elif skymaps.ndim == 2:
         map_slice = np.abs(skymaps[:, freq_index])
     else:
-        raise ValueError("skymaps must have shape (npix, n_frequencies) or (2, npix, n_frequencies).")
+        raise ValueError(
+            "skymaps must have shape (npix, n_frequencies) or (2, npix, n_frequencies)."
+        )
 
     if log_scale:
         map_slice = np.log10(np.maximum(map_slice, np.finfo(float).tiny))
