@@ -35,7 +35,12 @@ from .constants import (
 from .cosmology import (
     DL,
     Dc_interp,
+    Dc_interp_numpy,
     EE,
+    H0s,
+    OmegaDM,
+    OmegaLambda,
+    Omegak,
     dVcdz,
     dtodz,
 )
@@ -361,7 +366,7 @@ class SemiAnalyticPopulation:
         float
             Number density in Mpc^-3
         """
-        integrand = lambda z: M * jnp.log(10) * self.d2ndzdM(z, M)
+        integrand = lambda z: M * np.log(10) * self._d2ndzdM_numpy(z, M)
         result, _ = quad(integrand, zmin, zmax)
         return (1e6 * pc * pcinMKS)**3 * result
 
@@ -400,6 +405,49 @@ class SemiAnalyticPopulation:
         M = 10**x
         return self._integrand(M, z, f) * M * jnp.log(10)
 
+    def _dtodz_numpy(self, z):
+        """NumPy scalar helper for SciPy integration paths."""
+        Ez = np.sqrt(OmegaDM * (1.0 + z) ** 3.0 + Omegak * (1.0 + z) ** 2.0 + OmegaLambda)
+        return 1.0 / (H0s * (1.0 + z) * Ez)
+
+    def _dVcdz_numpy(self, z):
+        """NumPy scalar helper for SciPy integration paths."""
+        Ez = np.sqrt(OmegaDM * (1.0 + z) ** 3.0 + Omegak * (1.0 + z) ** 2.0 + OmegaLambda)
+        return ((4.0 * np.pi * cMKS) / H0s) * Dc_interp_numpy(z) ** 2 / Ez
+
+    def _d2ndzdM_numpy(self, z, M):
+        """NumPy scalar helper for SciPy integration paths."""
+        return (
+            (1.0 / (M * np.log(10)))
+            * self.n0
+            * ((M / (1e7 * MsunMKS)) ** (-self.alphaM) * np.exp(-M / self.Mstar))
+            * (((1 + z) ** self.betaz) * np.exp(-z / self.z0))
+            * self._dtodz_numpy(z)
+        )
+
+    def _dlnfdtr_numpy(self, M, f, z):
+        """NumPy scalar helper for SciPy integration paths."""
+        return (96 / 5) * np.pi ** (8 / 3) * (M * GMKS) ** (5 / 3) * (f * (1 + z)) ** (8 / 3) * cMKS**(-5)
+
+    def _d3ndzdMdlnf_numpy(self, M, f, z):
+        """NumPy scalar helper for SciPy integration paths."""
+        return (
+            self._d2ndzdM_numpy(z, M)
+            * self._dlnfdtr_numpy(M, f, z) ** (-1)
+            * self._dtodz_numpy(z) ** (-1)
+            * self._dVcdz_numpy(z)
+        )
+
+    def _integrand_numpy(self, M, z, f):
+        """NumPy scalar helper for characteristic-strain integration."""
+        prefactor = (4 * GMKS ** (5 / 3)) / (3 * np.pi ** (1 / 3) * cMKS**2)
+        return prefactor * f ** (-4 / 3) * (1 + z) ** (-1 / 3) * M ** (5 / 3) * self._d2ndzdM_numpy(z, M * kg)
+
+    def _integrand_log_numpy(self, x, z, f):
+        """NumPy scalar helper in log10(M) space."""
+        M = 10**x
+        return self._integrand_numpy(M, z, f) * M * np.log(10)
+
     def hc2(self, ff):
         """
         Compute the characteristic strain squared h_c^2(f).
@@ -418,7 +466,7 @@ class SemiAnalyticPopulation:
         x_max = np.log10(Mmax)
 
         def integrand_nquad(z, x):
-            return self._integrand_log(x, z, ff)
+            return self._integrand_log_numpy(x, z, ff)
 
         result, _ = nquad(
             integrand_nquad,
@@ -452,7 +500,7 @@ class SemiAnalyticPopulation:
 
         def integrand(log10f, z, M):
             f = 10**log10f / s
-            return jnp.log(10) * kg * self.d3ndzdMdlnf(M * kg, f, z)
+            return np.log(10) * kg * self._d3ndzdMdlnf_numpy(M * kg, f, z)
 
         result, _ = nquad(
             integrand,

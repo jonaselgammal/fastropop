@@ -1,53 +1,62 @@
 # fastropop
 
-`fastropop` is a standalone Python package for fast astrophysical population
-generation, with a focus on JAX-based semi-analytic compact-binary models.
+`fastropop` is the package that generates your SMBHB populations at lightning speed. It is designed to be a fast, flexible, and user-friendly tool for simulating the cosmic population of supermassive black hole binaries (SMBHBs) and their gravitational wave signatures in the nanohertz regime.
 
-This repository is scaffolded to support:
+The package is centered on the semi analytic population from [0804.4476](https://arxiv.org/abs/0804.4476), which is implemented in the `SemiAnalyticPopulation` class. It also includes a suite of utilities for computing characteristic-strain quantities, sampling population realizations, binning into PTA-style spectra
 
-- installable `src/` package layout
-- automated tests with `pytest`
-- linting and formatting with `ruff`
-- runnable examples under `examples/`
-- GitHub Actions CI for tests and package builds
-- a release path to PyPI
+## What It Does
 
-The package is centered around one concrete semi-analytic population model for
-SMBHB populations, with small support modules for shared cosmology and helper
-functions.
+- defines a semi-analytic SMBHB population model
+- computes characteristic-strain quantities and expected binary counts
+- samples population realizations with JAX-backed randomness
+- bins sampled realizations into PTA-style spectra
+- generates HEALPix skymaps with either `jax-healpy` or `healpy`
 
-Core modules:
-- `fastropop.constants` for units, physical constants, and default parameter values
-- `fastropop.cosmology` for cosmological distance/time helper functions
-- `fastropop.semi_analytic` for the concrete `SemiAnalyticPopulation` implementation
-
-## Planned scope
-
-- JAX-first semi-analytic population generation utilities
-- a concrete `SemiAnalyticPopulation` API for sampling and derived quantities
-- examples and notebooks that reproduce core workflows
-
-## Quick start
+## Installation
 
 ```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install -e ".[dev]"
-pytest
+git clone git@github.com:jonaselgammal/fastropop.git
+cd fastropop
+pip install -e .
 ```
 
-For plotting utilities and HEALPix skymap generation, install the visualization
-extras:
+Notes:
+- `jax` and `jaxlib` are core dependencies
+- skymap generation requires a HEALPix backend
+- `jax-healpy` is preferred when installed
+- standard `healpy` is supported as a fallback backend
 
-```bash
-pip install -e ".[dev,viz]"
+## Quick Start
+
+```python
+import fastropop
+
+pop = fastropop.SemiAnalyticPopulation()
+
+distM, distz, distlog10f = pop.sample_dist(Nbinaries=1000, key=0)
+spec = fastropop.binning(distM, distz, distlog10f, do_plot=False)
 ```
 
-## Repository layout
+For reproducible stochastic methods, pass a JAX key or integer seed:
+
+```python
+params = fastropop.draw_parameters(key=0)
+Nbinaries = pop.generate_poisson_realization(1, key=1)
+```
+
+If `key=None`, the package creates a fresh nondeterministic JAX key internally.
+
+## Notebooks
+
+The main examples currently live in:
+- `examples/notebooks/SMBHB_pop_poisson.ipynb`
+- `examples/notebooks/test_sam.ipynb`
+
+## Repository Layout
 
 ```text
 src/fastropop/        Package source
 tests/                Unit and regression tests
-examples/             Lightweight runnable examples
+examples/             Example scripts and notebooks
 .github/workflows/    CI and release automation
 ```

@@ -55,6 +55,11 @@ def Dc_interp(z):
     return jnp.interp(z, _Z_VALUES_JAX, _DC_VALUES_JAX)
 
 
+def Dc_interp_numpy(z):
+    """NumPy interpolation for scalar SciPy integration paths."""
+    return np.interp(z, _Z_VALUES, _DC_VALUES)
+
+
 @jit
 def dVcdz(z):
     """Compute the comoving volume element dVc/dz."""
@@ -70,6 +75,7 @@ def DL(z):
 __all__ = [
     "DL",
     "Dc_interp",
+    "Dc_interp_numpy",
     "Dca",
     "EE",
     "H0s",
