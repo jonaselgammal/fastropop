@@ -2,7 +2,7 @@
 
 `fastropop` is the package that generates your SMBHB populations at lightning speed. It is designed to be a fast, flexible, and user-friendly tool for simulating the cosmic population of supermassive black hole binaries (SMBHBs) and their gravitational wave signatures in the nanohertz regime.
 
-The package is centered on the semi analytic population from [0804.4476](https://arxiv.org/abs/0804.4476), which is implemented in the `SemiAnalyticPopulation` class. It also includes a suite of utilities for computing characteristic-strain quantities, sampling population realizations, binning into PTA-style spectra
+The package is centered on the semi analytic population from [arXiv:0804.4476](https://arxiv.org/abs/0804.4476), which is implemented in the `SemiAnalyticPopulation` class. It also includes a suite of utilities for computing characteristic-strain quantities, sampling population realizations, binning into PTA-style spectra
 
 ## What It Does
 
@@ -49,8 +49,9 @@ If `key=None`, the package creates a fresh nondeterministic JAX key internally.
 ## Notebooks
 
 The main examples currently live in:
-- `examples/notebooks/SMBHB_pop_poisson.ipynb`
-- `examples/notebooks/test_sam.ipynb`
+- `examples/notebooks/semi-analytic.ipynb`
+- `examples/notebooks/population-spectra.ipynb`
+- `examples/notebooks/skymaps.ipynb`
 
 ## Repository Layout
 

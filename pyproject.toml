@@ -37,6 +37,11 @@ dev = [
   "pytest-cov>=5.0",
   "ruff>=0.6",
 ]
+docs = [
+  "mkdocs>=1.6",
+  "mkdocs-material>=9.5",
+  "mkdocstrings[python]>=0.25",
+]
 viz = [
   "jax-healpy>=0.6",
   "healpy>=1.17",
@@ -49,9 +54,9 @@ examples = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/placeholder/fastropop"
-Repository = "https://github.com/placeholder/fastropop"
-Issues = "https://github.com/placeholder/fastropop/issues"
+Homepage = "https://github.com/jonaselgammal/fastropop"
+Repository = "https://github.com/jonaselgammal/fastropop"
+Issues = "https://github.com/jonaselgammal/fastropop/issues"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/fastropop"]
