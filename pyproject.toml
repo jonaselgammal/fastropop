@@ -10,7 +10,7 @@ readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
 authors = [
-  { name = "Jesper Gjerlow", email = "placeholder@example.com" },
+  { name = "Jonas El Gammal", email = "jonas.el.gammal@rwth-aachen.de" },
 ]
 keywords = ["astrophysics", "jax", "gravitational-waves", "populations", "pta"]
 classifiers = [
