@@ -141,5 +141,5 @@ fastropop.plot_skymap(
 
 For more complete worked examples corresponding to the workflows on this page, see:
 
-- `examples/notebooks/population-spectra.ipynb`
-- `examples/notebooks/skymaps.ipynb`
+- `examples/population-spectra.ipynb`
+- `examples/skymaps.ipynb`

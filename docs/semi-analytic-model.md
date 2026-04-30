@@ -275,4 +275,4 @@ The skymap code combines sampled binary parameters with random sky position, inc
 
 For a worked tutorial focused on the model itself and its ensemble quantities, see:
 
-- `examples/notebooks/semi-analytic.ipynb`
+- `examples/semi-analytic.ipynb`

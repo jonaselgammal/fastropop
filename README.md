@@ -58,9 +58,9 @@ If `key=None`, the package creates a fresh nondeterministic JAX key internally.
 ## Notebooks
 
 The main examples currently live in:
-- `examples/notebooks/semi-analytic.ipynb`
-- `examples/notebooks/population-spectra.ipynb`
-- `examples/notebooks/skymaps.ipynb`
+- `examples/semi-analytic.ipynb`
+- `examples/population-spectra.ipynb`
+- `examples/skymaps.ipynb`
 
 ## Repository Layout
 
