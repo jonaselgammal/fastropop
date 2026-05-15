@@ -13,6 +13,8 @@ The package is centered on the semi analytic population from [arXiv:0804.4476](h
 
 Documentation: [fastropop.readthedocs.io](https://fastropop.readthedocs.io/)
 
+This repository is maintained by Jonas El Gammal and reflects scientific work carried out with Chiara Cecchini, Gabriele Franciolini, and Mauro Pieroni. The package was used for the analysis in [arXiv:2605.05157](https://arxiv.org/abs/2605.05157), but of course you can use it for whatever you want!
+
 ## What It Does
 
 - defines a semi-analytic SMBHB population model

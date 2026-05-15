@@ -8,6 +8,8 @@
 
 The package is centered on the semi analytic population from [arXiv:0804.4476](https://arxiv.org/abs/0804.4476), which is implemented in the `SemiAnalyticPopulation` class. It also includes a suite of utilities for computing characteristic-strain quantities, sampling population realizations, and binning into PTA-style spectra.
 
+The repository is maintained by Jonas El Gammal and reflects scientific work carried out with Chiara Cecchini, Gabriele Franciolini, and Mauro Pieroni. The package was used for the analysis presented in [arXiv:2605.05157](https://arxiv.org/abs/2605.05157), but of course you can use it for whatever you want!
+
 The docs are intentionally compact. The goal is to cover the main workflow clearly, not to exhaustively document every internal helper.
 
 ## What You Can Do
