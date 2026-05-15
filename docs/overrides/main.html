@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+
+{% block extrahead %}
+  {{ super() }}
+  <link rel="icon" href="{{ 'img/favicon.png' | url }}" type="image/png">
+  <link rel="shortcut icon" href="{{ 'img/favicon.png' | url }}" type="image/png">
+  <link rel="apple-touch-icon" href="{{ 'img/favicon.png' | url }}">
+{% endblock %}

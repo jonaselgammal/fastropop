@@ -55,6 +55,7 @@ examples = [
 
 [project.urls]
 Homepage = "https://github.com/jonaselgammal/fastropop"
+Documentation = "https://fastropop.readthedocs.io/"
 Repository = "https://github.com/jonaselgammal/fastropop"
 Issues = "https://github.com/jonaselgammal/fastropop/issues"
 
@@ -69,7 +70,7 @@ testpaths = ["tests"]
 [tool.ruff]
 line-length = 100
 target-version = "py311"
-extend-exclude = ["examples/notebooks/*.ipynb"]
+extend-exclude = ["examples/*.ipynb", "examples/notebooks/*.ipynb"]
 
 [tool.ruff.lint]
 select = [

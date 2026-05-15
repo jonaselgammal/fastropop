@@ -7,7 +7,8 @@ repo_name: jonaselgammal/fastropop
 theme:
   name: material
   logo: img/fastropop-emblem-transparent.png
-  favicon: img/fastropop-emblem-transparent.png
+  favicon: img/favicon.png
+  custom_dir: docs/overrides
   features:
     - navigation.sections
     - navigation.top
@@ -23,6 +24,8 @@ plugins:
         python:
           paths: [src]
           options:
+            docstring_style: numpy
+            docstring_section_style: list
             show_root_heading: true
             show_source: false
             show_signature_annotations: true
@@ -50,4 +53,10 @@ nav:
   - Installation: installation.md
   - Quickstart: quickstart.md
   - Semi-Analytic Model: semi-analytic-model.md
-  - API: api.md
+  - API:
+      - Overview: api/index.md
+      - Semi-Analytic Model: api/semi-analytic.md
+      - Sampling and Spectra: api/spectra.md
+      - Cosmology: api/cosmology.md
+      - Units: api/units.md
+      - Plotting: api/plotting.md

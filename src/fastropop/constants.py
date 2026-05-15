@@ -29,6 +29,14 @@ pcinMKS = 3.08568e16 * m / pc
 # =============================================================================
 # Reference Cosmology Scales
 # =============================================================================
+# Fixed background cosmology used by the semi-analytic model and standard
+# normalization used in GW energy-density conversions.
+hH0 = 0.7
+OmegaDM = 0.3
+OmegaLambda = 0.7
+Omegak = 0.0
+H0s = hH0 * 3.24078e-18 / s
+
 # Standard normalization used in GW energy-density conversions.
 H100 = 100.0 * 1000.0 / 3.085677581e22
 
@@ -59,9 +67,13 @@ default_z0 = 1.8
 __all__ = [
     "GMKS",
     "H100",
+    "H0s",
     "Mmax",
     "Mmin",
     "MsunMKS",
+    "OmegaDM",
+    "OmegaLambda",
+    "Omegak",
     "TNG15",
     "cMKS",
     "default_Mstar",
@@ -71,6 +83,7 @@ __all__ = [
     "default_z0",
     "fmaxNG15",
     "fminNG15",
+    "hH0",
     "kg",
     "m",
     "pc",

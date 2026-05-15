@@ -51,7 +51,7 @@ jax.config.update("jax_enable_x64", True)
 
 
 def _coerce_key(key):
-    """Normalize an optional seed or JAX key into a PRNG key."""
+    """Normalize an optional seed or JAX key into a usable PRNG key."""
     if key is None:
         return jax.random.PRNGKey(secrets.randbits(32))
     if isinstance(key, int):
@@ -61,7 +61,36 @@ def _coerce_key(key):
 
 @jit
 def dlnfdtr(M, f, z):
-    """Compute the frequency evolution term d(ln f)/dt_r."""
+    r"""
+    Compute the GW-driven frequency evolution \(d\ln f_r / dt_r\).
+
+    The semi-analytic model assumes binaries evolve only through quadrupolar
+    gravitational-wave emission. In that limit,
+
+    \[
+    \frac{d \ln f_r}{dt_r} =
+    \frac{96}{5}\pi^{8/3}
+    \frac{(G \mathcal{M})^{5/3}}{c^5}
+    f_r^{8/3},
+    \]
+
+    where \(\mathcal{M}\) is the chirp mass and
+    \(f_r = (1+z) f\) is the rest-frame GW frequency.
+
+    Parameters
+    ----------
+    M : float or jax.Array
+        Chirp mass in kilograms.
+    f : float or jax.Array
+        Observer-frame GW frequency in Hz.
+    z : float or jax.Array
+        Redshift.
+
+    Returns
+    -------
+    float or jax.Array
+        Frequency-evolution term in \({\rm s^{-1}}\).
+    """
     return (
         (96 / 5)
         * jnp.pi ** (8 / 3)
@@ -73,7 +102,21 @@ def dlnfdtr(M, f, z):
 
 @jit
 def h(M, f, z):
-    """Compute the gravitational wave strain amplitude."""
+    r"""
+    Compute the source strain amplitude without angular averaging.
+
+    The normalization used throughout the package is
+
+    \[
+    h(\mathcal{M}, f, z) =
+    \frac{4\pi^{2/3}(G\mathcal{M})^{5/3}}{c^4 D_c(z)}
+    \left[f(1+z)\right]^{2/3},
+    \]
+
+    with \(D_c(z)\) the comoving distance. This quantity is appropriate
+    for source-level calculations before averaging over sky position and binary
+    orientation.
+    """
     return (
         (4 * jnp.pi ** (2 / 3))
         * (GMKS * M) ** (5 / 3)
@@ -84,7 +127,18 @@ def h(M, f, z):
 
 @jit
 def h_average(M, f, z):
-    """Compute the sky and polarization averaged strain amplitude."""
+    r"""
+    Compute the sky-and-orientation averaged strain amplitude.
+
+    `fastropop` uses the stochastic-background convention
+
+    \[
+    \bar h(\mathcal{M}, f, z) = \sqrt{\frac{2}{5}}\, h(\mathcal{M}, f, z),
+    \]
+
+    which is the amplitude entering the Monte Carlo binning of unresolved
+    populations.
+    """
     return (
         (8 * jnp.pi ** (2 / 3) / jnp.sqrt(10))
         * (GMKS * M) ** (5 / 3)
@@ -94,7 +148,31 @@ def h_average(M, f, z):
 
 
 def draw_parameters(param_ranges=None, key=None):
-    """Draw one random parameter set from posterior ranges using JAX RNG."""
+    """
+    Draw one random semi-analytic population parameter set.
+
+    This helper samples each model parameter independently from a broad range
+    motivated by the original semi-analytic model literature and related
+    posterior explorations. It is mainly intended for toy scans, demonstrations,
+    and stochastic parameter studies rather than for calibrated inference.
+
+    Parameters
+    ----------
+    param_ranges : dict, optional
+        Mapping from parameter name to ``[min, max]`` interval. The parameters
+        are ``n0``, ``alphaM``, ``Mstar``, ``betaz``, and ``z0``.
+        ``n0`` and ``Mstar`` are sampled uniformly in log-space; the others are
+        sampled uniformly in linear space.
+    key : jax.random.PRNGKey or int, optional
+        Random key or integer seed. If ``None``, a fresh nondeterministic key
+        is generated internally.
+
+    Returns
+    -------
+    dict
+        Dictionary containing one sampled parameter set with scalar Python
+        values ready to pass into `SemiAnalyticPopulation`.
+    """
     if param_ranges is None:
         param_ranges = {
             "n0": [
@@ -166,7 +244,24 @@ def compute_h_jitted(distM, distz, f_obs):
 
 
 def compute_h(distM, distz, f_obs):
-    """Compute strain values for sampled masses, redshifts, and frequencies."""
+    """
+    Compute source strain amplitudes for sampled masses and redshifts.
+
+    Parameters
+    ----------
+    distM : array-like
+        Sampled chirp masses in the sampling convention of the package, i.e.
+        masses expressed in units of kilograms divided by `fastropop.kg`.
+    distz : array-like
+        Sampled redshifts.
+    f_obs : float or array-like
+        Observer-frame GW frequency in Hz.
+
+    Returns
+    -------
+    jax.Array
+        Source strain amplitudes evaluated with `h`.
+    """
     return compute_h_jitted(jnp.asarray(distM), jnp.asarray(distz), f_obs)
 
 
@@ -207,30 +302,36 @@ def binning_jitted(distM, distz, distlog10f, bin_edges):
 
 
 def binning(distM, distz, distlog10f, freqs=None, hc2_values=None, do_plot=True):
-    """
-    Bin the sampled sources into frequency bins and compute spectrum.
+    r"""
+    Bin one Monte Carlo realization into PTA-style frequency bins.
 
-    This is a standalone function that doesn't depend on population parameters.
+    For each sampled source, the code computes the averaged strain
+    \(\bar h\), forms \(f \bar h^2\), assigns the source to a PTA
+    frequency bin, and sums the contributions in that bin. The returned
+    spectrum therefore represents the discretized realization of the stochastic
+    background before taking the final square root for plotting as
+    \(h_c(f)\).
 
     Parameters
     ----------
-    distM : array
-        Sampled masses (not in kg units)
-    distz : array
-        Sampled redshifts
-    distlog10f : array
-        Sampled log10 frequencies
-    freqs : array, optional
-        Reference frequencies for plotting
-    hc2_values : array, optional
-        Reference h_c values for plotting
+    distM : array-like
+        Sampled chirp masses in package sampling units (``kg``-scaled).
+    distz : array-like
+        Sampled redshifts.
+    distlog10f : array-like
+        Sampled \(\log_{10} f\) values, with \(f\) in Hz.
+    freqs : array-like, optional
+        Smooth reference frequency grid for the optional diagnostic plot.
+    hc2_values : array-like, optional
+        Smooth reference characteristic-strain curve for the optional plot.
     do_plot : bool, optional
-        Whether to generate diagnostic plot
+        If ``True``, call `fastropop.plot_binned_spectrum`.
 
     Returns
     -------
-    Spec : jax.Array
-        Array of shape (nbins, 2) containing [log10(f), f*h^2]
+    jax.Array
+        Array of shape ``(n_bins, 2)`` with columns
+        ``[log10(f_bin_center), summed_bin_value]``.
     """
     nbins = 14
 
@@ -268,30 +369,52 @@ def binning(distM, distz, distlog10f, freqs=None, hc2_values=None, do_plot=True)
 
 
 class SemiAnalyticPopulation:
-    """
-    Semi-analytical population model for supermassive black hole binaries.
+    r"""
+    Semi-analytic population model for supermassive black hole binaries.
 
-    This class encapsulates all population-dependent calculations and provides
-    methods for sampling sources, computing spectra, and generating skymaps.
+    This is the main high-level interface of :mod:`fastropop`. It wraps the
+    phenomenological merger-rate density, the cosmology helpers, the
+    gravitational-wave background integrals, and the Monte Carlo sampling tools
+    used to realize discrete SMBHB populations.
 
-    Parameters
-    ----------
-    n0 : float, optional
-        Normalization parameter for the population distribution
-    alphaM : float, optional
-        Mass power-law index
-    Mstar : float, optional
-        Characteristic mass scale in kg
-    betaz : float, optional
-        Redshift power-law index
-    z0 : float, optional
-        Characteristic redshift scale
+    The underlying population ansatz is
+
+    \[
+    \frac{d^2 n}{dz\,d\mathcal{M}}
+    \propto
+    \frac{1}{\mathcal{M}\ln 10}
+    \left(\frac{\mathcal{M}}{10^7 M_\odot}\right)^{-\alpha_M}
+    e^{-\mathcal{M}/\mathcal{M}_*}
+    (1+z)^{\beta_z} e^{-z/z_0}
+    \frac{dt_r}{dz},
+    \]
+
+    with free parameters ``n0``, ``alphaM``, ``Mstar``, ``betaz``, and ``z0``.
+    Public methods then derive quantities such as \(h_c^2(f)\), the expected
+    number of binaries, Monte Carlo source realizations, and skymaps.
     """
 
     def __init__(
         self, population_params=None, integration_limits=None, sampling_grids=None, PTA_params=None
     ):
-        """Initialize the population model with specified parameters."""
+        """
+        Initialize one semi-analytic population model.
+
+        Parameters
+        ----------
+        population_params : dict, optional
+            Population-law parameters. Supported keys are ``n0``, ``alphaM``,
+            ``Mstar``, ``betaz``, and ``z0``.
+        integration_limits : dict, optional
+            Integration bounds with optional keys ``Mbounds``, ``zbounds``,
+            and ``fbounds``.
+        sampling_grids : dict, optional
+            Sampling grids with optional keys ``Mgrid``, ``zgrid``, and
+            ``fgrid``. These control the inverse-CDF sampling resolution.
+        PTA_params : dict, optional
+            PTA frequency-grid configuration with optional keys ``Tobs``,
+            ``fmin``, ``fmax``, and ``Nfreqs``.
+        """
         population_params = {} if population_params is None else population_params
         integration_limits = {} if integration_limits is None else integration_limits
         sampling_grids = {} if sampling_grids is None else sampling_grids
@@ -333,20 +456,35 @@ class SemiAnalyticPopulation:
         self.Nbinaries_mean = None  # To be set after integration
 
     def d2ndzdM(self, z, M):
-        """
-        Compute the differential number density d²n/(dz dM).
+        r"""
+        Compute the differential merger-rate density \(d^2n/(dz\,d\mathcal{M})\).
+
+        This is the core semi-analytic population law used throughout the
+        package:
+
+        \[
+        \frac{d^2 n}{dz\,d\mathcal{M}}
+        =
+        \frac{n_0}{\mathcal{M}\ln 10}
+        \left(\frac{\mathcal{M}}{10^7 M_\odot}\right)^{-\alpha_M}
+        e^{-\mathcal{M}/\mathcal{M}_*}
+        (1+z)^{\beta_z}
+        e^{-z/z_0}
+        \frac{dt_r}{dz}.
+        \]
 
         Parameters
         ----------
-        z : float or array
-            Redshift
-        M : float or array
-            Mass in kg
+        z : float or array-like
+            Redshift.
+        M : float or array-like
+            Chirp mass in kilograms.
 
         Returns
         -------
-        float or array
-            Differential number density
+        float or jax.Array
+            Differential number density in SI-based units consistent with the
+            rest of the package.
         """
         return (
             (1.0 / (M * jnp.log(10)))
@@ -357,20 +495,22 @@ class SemiAnalyticPopulation:
         )
 
     def dndlog10M(self, M, zmin=0, zmax=5):
-        """
-        Compute dn/dlog10(M) by integrating over redshift.
+        r"""
+        Integrate the population over redshift to obtain \(dn/d\log_{10}\mathcal{M}\).
 
         Parameters
         ----------
         M : float
-            Mass in kg
-        zmin, zmax : float, optional
-            Redshift integration bounds
+            Chirp mass in kilograms.
+        zmin : float, optional
+            Lower redshift integration bound.
+        zmax : float, optional
+            Upper redshift integration bound.
 
         Returns
         -------
         float
-            Number density in Mpc^-3
+            Mass function in \({\rm Mpc^{-3}}\).
         """
 
         def integrand(z):
@@ -380,22 +520,20 @@ class SemiAnalyticPopulation:
         return (1e6 * pc * pcinMKS) ** 3 * result
 
     def d3ndzdMdlnf(self, M, f, z):
-        """
-        Compute the 3D differential number density d³n/(dz dM d ln f).
+        r"""
+        Compute \(d^3n/(dz\,d\mathcal{M}\,d\ln f)\).
 
-        Parameters
-        ----------
-        M : float or array
-            Mass in kg
-        f : float or array
-            Frequency in Hz
-        z : float or array
-            Redshift
+        The extra frequency dimension is obtained by converting the population
+        into time spent per logarithmic frequency interval:
 
-        Returns
-        -------
-        float or array
-            3D differential number density
+        \[
+        \frac{d^3 n}{dz\,d\mathcal{M}\,d\ln f}
+        =
+        \frac{d^2 n}{dz\,d\mathcal{M}}
+        \left(\frac{d\ln f_r}{dt_r}\right)^{-1}
+        \left(\frac{dt_r}{dz}\right)^{-1}
+        \frac{dV_c}{dz}.
+        \]
         """
         return self.d2ndzdM(z, M) * dlnfdtr(M, f, z) ** (-1) * (dtodz(z)) ** (-1) * dVcdz(z)
 
@@ -467,18 +605,23 @@ class SemiAnalyticPopulation:
         return self._integrand_numpy(M, z, f) * M * np.log(10)
 
     def hc2(self, ff):
-        """
-        Compute the characteristic strain squared h_c^2(f).
+        r"""
+        Compute the ensemble characteristic strain squared \(h_c^2(f)\).
+
+        This method evaluates the smooth background integral implied by the
+        semi-analytic population model. In the current implementation the
+        integration is performed with SciPy using NumPy scalar helpers for
+        efficiency.
 
         Parameters
         ----------
         ff : float
-            Frequency in Hz
+            Observer-frame frequency in Hz.
 
         Returns
         -------
         float
-            Characteristic strain squared
+            Ensemble characteristic strain squared at frequency ``ff``.
         """
         x_min = np.log10(Mmin)
         x_max = np.log10(Mmax)
@@ -492,22 +635,34 @@ class SemiAnalyticPopulation:
         return result
 
     def compute_Nbinaries(self, Mbounds=None, zbounds=None, fbounds=None, verbose=False):
-        """
-        Integrate to find the total number of binaries.
+        r"""
+        Integrate the expected number of binaries in the chosen domain.
+
+        The integral is carried out over chirp mass, redshift, and logarithmic
+        frequency:
+
+        \[
+        \langle N \rangle =
+        \int d\mathcal{M}\,dz\,d\log_{10}f\;
+        \ln(10)\,\mathcal{M}_{\rm unit}\,
+        \frac{d^3 n}{dz\,d\mathcal{M}\,d\ln f}.
+        \]
 
         Parameters
         ----------
-        Mass_bounds : list of 2 floats, optional
-            [M_min, M_max] in kg
-        redshift_bounds : list of 2 floats, optional
-            [z_min, z_max]
-        frequency_bounds : list of 2 floats, optional
-            [f_min, f_max] in Hz
+        Mbounds : sequence of float, optional
+            Mass bounds ``[M_min, M_max]`` in the package sampling convention.
+        zbounds : sequence of float, optional
+            Redshift bounds ``[z_min, z_max]``.
+        fbounds : sequence of float, optional
+            Frequency bounds ``[f_min, f_max]`` in SI-scaled package units.
+        verbose : bool, optional
+            If ``True``, print the resulting mean binary count.
 
         Returns
         -------
         float
-            Total number of binaries
+            Expected number of binaries in the specified domain.
         """
         Mbounds = self.Mbounds if Mbounds is None else Mbounds
         zbounds = self.zbounds if zbounds is None else zbounds
@@ -535,22 +690,25 @@ class SemiAnalyticPopulation:
         verbose=False,
     ):
         """
-        Generate a Poisson realization of the number of binaries.
+        Draw Poisson realizations of the binary count.
 
         Parameters
         ----------
         Nrealizations : int, optional
-            Number of realizations to generate
-        Nbinaries_mean : int, optional
-            Mean (expectation) value of the number of binaries. If None, uses self.Nbinaries_mean
+            Number of Poisson draws to generate.
+        Nbinaries_mean : int or float, optional
+            Mean count used as the Poisson expectation value. If omitted,
+            ``self.Nbinaries_mean`` is used.
         key : jax.random.PRNGKey or int, optional
-            Random key or seed for reproducibility. If None, a fresh
+            Random key or seed for reproducibility. If ``None``, a fresh
             nondeterministic key is created internally.
+        verbose : bool, optional
+            If ``True``, print the realized counts.
 
         Returns
         -------
-        int or array of int
-            Realized number of binaries
+        jax.Array
+            Integer-valued array of shape ``(Nrealizations,)``.
         """
         if Nbinaries_mean is None:
             if self.Nbinaries_mean is None:
@@ -718,33 +876,36 @@ class SemiAnalyticPopulation:
         do_plot=False,
         key=None,
     ):
-        """
-        Sample mass, redshift, and frequency distributions for a population of binaries.
+        r"""
+        Sample masses, redshifts, and frequencies from the semi-analytic population.
+
+        The sampler builds one-dimensional inverse-CDF approximations for the
+        mass, redshift, and logarithmic-frequency distributions and then draws
+        ``Nbinaries`` independent sources.
 
         Parameters
         ----------
         Nbinaries : int, optional
-            Number of binaries to sample. If None, uses self.Nbinaries_mean
+            Number of binaries to sample. If omitted, the method uses
+            ``int(self.Nbinaries_mean)``.
+        Mgrid : array-like, optional
+            Custom mass grid used to build the inverse-CDF sampler.
+        zgrid : array-like, optional
+            Custom redshift grid used to build the inverse-CDF sampler.
+        fgrid : array-like, optional
+            Custom frequency grid used to build the inverse-CDF sampler.
         do_plot : bool, optional
-            Whether to generate diagnostic plots
-        Mgrid : array, optional
-            Custom mass grid for sampling
-        zgrid : array, optional
-            Custom redshift grid for sampling
-        fgrid : array, optional
-            Custom frequency grid for sampling
+            If ``True``, produce diagnostic sampling plots.
         key : jax.random.PRNGKey or int, optional
-            JAX random key or integer seed for reproducibility. If None, a
+            JAX random key or integer seed for reproducibility. If ``None``, a
             fresh nondeterministic key is created internally.
 
         Returns
         -------
-        distM : jax.Array
-            Sampled masses (not in kg units)
-        distz : jax.Array
-            Sampled redshifts
-        distlog10f : jax.Array
-            Sampled log10 frequencies
+        tuple of jax.Array
+            ``(distM, distz, distlog10f)`` with shapes ``(Nbinaries,)``.
+            ``distM`` is returned in the package sampling mass convention,
+            ``distz`` in redshift, and ``distlog10f`` in \(\log_{10} f\).
         """
         if Nbinaries is None:
             if self.Nbinaries_mean is None:
@@ -815,43 +976,41 @@ class SemiAnalyticPopulation:
         key=None,
     ):
         """
-        Generate HEALPix skymaps by processing sources in batches.
+        Generate HEALPix skymaps from a sampled realization.
 
-        This method is memory-efficient as it only keeps the skymaps in memory,
-        not all the sampled sources and amplitudes. It processes sources in batches,
-        computing their sky positions, orientations, and amplitudes, then adding them
-        to the skymaps before discarding the batch.
+        Sources are sampled in batches, assigned isotropic sky positions and
+        binary orientations, converted into plus and cross polarizations, and
+        accumulated into HEALPix maps frequency bin by frequency bin.
 
         Parameters
         ----------
         Nbinaries : int, optional
-            Total number of binaries to generate. Default: self.Nbinaries_mean
-        PTA_frequencies : array, optional
-            Array of frequency bin centers in Hz. Default: self.PTA_frequencies
-        Mgrid : array, optional
-            Custom mass grid for sampling
-        zgrid : array, optional
-            Custom redshift grid for sampling
-        fgrid : array, optional
-            Custom frequency grid for sampling
+            Total number of binaries to realize. If omitted, the method uses
+            ``int(self.Nbinaries_mean)``.
+        PTA_frequencies : array-like, optional
+            Observer-frame PTA frequency-bin centers in Hz.
+        Mgrid : array-like, optional
+            Custom mass grid used to build the inverse-CDF sampler.
+        zgrid : array-like, optional
+            Custom redshift grid used to build the inverse-CDF sampler.
+        fgrid : array-like, optional
+            Custom frequency grid used to build the inverse-CDF sampler.
         Nside : int, optional
-            HEALPix resolution parameter. Default: 16
+            HEALPix resolution parameter.
         batch_size : int, optional
-            Number of sources to process per batch. Default: 10000000
+            Number of sources processed per batch.
         verbose : bool, optional
-            Whether to print progress messages. Default: False
+            If ``True``, print batch progress information.
         key : jax.random.PRNGKey or int, optional
-            JAX random key or integer seed for reproducibility. If None, a
+            JAX random key or integer seed for reproducibility. If ``None``, a
             fresh nondeterministic key is created internally.
 
         Returns
         -------
-        skymaps_tot : numpy.ndarray
-            Combined skymaps, shape (2, npix, n_frequencies)
-        skymaps_plus : numpy.ndarray
-            Plus polarization skymaps, shape (npix, n_frequencies)
-        skymaps_cross : numpy.ndarray
-            Cross polarization skymaps, shape (npix, n_frequencies)
+        tuple of jax.Array
+            ``(skymaps_tot, skymaps_plus, skymaps_cross)`` where
+            ``skymaps_tot`` has shape ``(2, npix, n_frequencies)`` and the
+            polarization-resolved maps have shape ``(npix, n_frequencies)``.
         """
         if Nbinaries is None:
             if self.Nbinaries_mean is None:
@@ -959,36 +1118,36 @@ class SemiAnalyticPopulation:
         key=None,
     ):
         """
-        Compute many Monte Carlo realizations of the GW spectrum.
+        Generate many Monte Carlo realizations of the binned GW spectrum.
+
+        Each realization first draws a Poisson-distributed binary count with
+        mean ``Nbinaries_mean``, then samples a discrete population and bins it
+        into PTA-style frequency bins.
 
         Parameters
         ----------
         Nbinaries_mean : int or float
-            Mean number of binaries used for the Poisson draw in each realization
+            Poisson mean used for the source-count draw in each realization.
         nrealizations : int, optional
-            Number of realizations to perform
-        freqs : array, optional
-            Reference frequencies for plotting
-        hc2_values : array, optional
-            Reference h_c values for plotting
+            Number of independent realizations to generate.
+        freqs : array-like, optional
+            Optional smooth comparison frequency grid in Hz.
+        hc2_values : array-like, optional
+            Optional smooth comparison strain curve passed to the plotting
+            helper.
         do_plot : bool, optional
-            If True, plot ensemble average, individual realizations, and 68% interval
+            If ``True``, visualize the ensemble of realizations together with
+            the median and central interval.
         key : jax.random.PRNGKey or int, optional
-            Random key or seed for reproducibility. If None, a fresh
+            Random key or seed for reproducibility. If ``None``, a fresh
             nondeterministic key is created internally.
 
         Returns
         -------
-        tabreal : jax.Array
-            Array of shape (nrealizations, nbins, 2): [log10(f), log10(sqrt(f h^2))]
-        log10f : jax.Array
-            Log10 of frequency bin centers
-        median : jax.Array
-            Median of realizations at each frequency
-        q_low : jax.Array
-            Lower 68% quantile
-        q_high : jax.Array
-            Upper 68% quantile
+        tuple
+            ``(tabreal, log10f, median, q_low, q_high)`` where ``tabreal`` has
+            shape ``(nrealizations, n_bins, 2)`` and stores the transformed
+            spectra used for plotting.
         """
         key = _coerce_key(key)
         tabreal = []

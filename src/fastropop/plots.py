@@ -6,7 +6,23 @@ import numpy as np
 
 
 def plot_binned_spectrum(spec, freqs=None, hc2_values=None):
-    """Plot a binned characteristic-strain spectrum."""
+    r"""
+    Plot a PTA-binned characteristic-strain spectrum.
+
+    Parameters
+    ----------
+    spec : array-like, shape (n_bins, 2)
+        Two-column spectrum array returned by `fastropop.binning`.
+        Column 0 contains \(\log_{10} f\), while column 1 contains the
+        binned \(f h_c^2\)-style quantity before the final square root and
+        logarithm are applied for display.
+    freqs : array-like, optional
+        Observer-frame reference frequencies in Hz for an overplotted smooth
+        comparison curve.
+    hc2_values : array-like, optional
+        Reference characteristic-strain values or equivalent comparison curve
+        to plot against the binned realization.
+    """
     import matplotlib.pyplot as plt
 
     spec = np.asarray(spec)
@@ -41,7 +57,33 @@ def plot_sample_distributions(
     fgrid_log10,
     pdflogf,
 ):
-    """Plot sampled distributions against their target PDFs."""
+    r"""
+    Plot sampled distributions against the target PDFs used for inverse-CDF sampling.
+
+    Parameters
+    ----------
+    distM : array-like
+        Sampled chirp masses returned by
+        `fastropop.SemiAnalyticPopulation.sample_dist`.
+    distz : array-like
+        Sampled redshifts returned by
+        `fastropop.SemiAnalyticPopulation.sample_dist`.
+    distlog10f : array-like
+        Sampled \(\log_{10} f\) values returned by
+        `fastropop.SemiAnalyticPopulation.sample_dist`.
+    Mgrid : array-like
+        Mass grid used to define the target mass PDF.
+    pdfM : array-like
+        Target mass PDF evaluated on `Mgrid`.
+    zgrid : array-like
+        Redshift grid used to define the target redshift PDF.
+    pdfz : array-like
+        Target redshift PDF evaluated on `zgrid`.
+    fgrid_log10 : array-like
+        Frequency grid in \(\log_{10} f\).
+    pdflogf : array-like
+        Target PDF evaluated on `fgrid_log10`.
+    """
     import matplotlib.pyplot as plt
 
     distM = np.asarray(distM)
@@ -81,7 +123,26 @@ def plot_sample_distributions(
 
 
 def plot_realizations(log10f, yvals, median, q_low, q_high, freqs=None, hc2_values=None):
-    """Plot many GW-spectrum realizations and their central interval."""
+    r"""
+    Plot many Monte Carlo realizations and their central interval.
+
+    Parameters
+    ----------
+    log10f : array-like
+        Frequency-bin centers in \(\log_{10} f\).
+    yvals : array-like, shape (n_realizations, n_bins)
+        Realization values, usually \(\log_{10}(h_c)\) after binning.
+    median : array-like
+        Pointwise median of the realization ensemble.
+    q_low : array-like
+        Lower envelope of the central interval.
+    q_high : array-like
+        Upper envelope of the central interval.
+    freqs : array-like, optional
+        Optional smooth comparison frequency grid in Hz.
+    hc2_values : array-like, optional
+        Optional smooth comparison strain curve.
+    """
     import matplotlib.pyplot as plt
 
     log10f = np.asarray(log10f)
@@ -116,7 +177,25 @@ def plot_realizations(log10f, yvals, median, q_low, q_high, freqs=None, hc2_valu
 
 
 def plot_skymap(skymaps, freq_index=0, polarization="total", log_scale=False, title=None):
-    """Plot one HEALPix skymap slice for a selected frequency bin."""
+    r"""
+    Plot a single HEALPix skymap slice for one PTA frequency bin.
+
+    Parameters
+    ----------
+    skymaps : array-like
+        Either a stacked array of shape ``(2, npix, n_frequencies)`` containing
+        plus and cross polarizations, or a single array of shape
+        ``(npix, n_frequencies)``.
+    freq_index : int, optional
+        Frequency-bin index to display.
+    polarization : {"total", "plus", "cross"}, optional
+        Which polarization content to visualize. For stacked maps,
+        ``"total"`` shows \(\sqrt{|h_+|^2 + |h_\times|^2}\).
+    log_scale : bool, optional
+        If ``True``, display \(\log_{10}\) of the amplitude.
+    title : str, optional
+        Plot title. If omitted, a descriptive default is created.
+    """
     try:
         import healpy as hp
     except ImportError as exc:  # pragma: no cover
