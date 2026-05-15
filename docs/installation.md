@@ -1,6 +1,12 @@
 # Installation
 
-Clone the repository and install it in editable mode:
+Install the package from PyPI:
+
+```bash
+pip install fastropop
+```
+
+For local development, clone the repository and install it in editable mode:
 
 ```bash
 git clone git@github.com:jonaselgammal/fastropop.git
@@ -8,7 +14,7 @@ cd fastropop
 pip install -e .
 ```
 
-Optional extras:
+Optional extras for a local checkout:
 
 ```bash
 pip install -e ".[docs]"

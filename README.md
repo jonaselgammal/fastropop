@@ -26,9 +26,7 @@ This repository is maintained by Jonas El Gammal and reflects scientific work ca
 ## Installation
 
 ```bash
-git clone git@github.com:jonaselgammal/fastropop.git
-cd fastropop
-pip install -e .
+pip install fastropop
 ```
 
 Notes:
@@ -36,6 +34,14 @@ Notes:
 - skymap generation requires a HEALPix backend
 - `jax-healpy` is preferred when installed
 - standard `healpy` is supported as a fallback backend
+
+For local development instead:
+
+```bash
+git clone git@github.com:jonaselgammal/fastropop.git
+cd fastropop
+pip install -e .
+```
 
 ## Quick Start
 
