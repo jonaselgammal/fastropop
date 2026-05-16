@@ -25,4 +25,4 @@ The docs are intentionally compact. The goal is to cover the main workflow clear
 - [Installation](installation.md)
 - [Quickstart](quickstart.md)
 - [Semi-Analytic Model](semi-analytic-model.md)
-- [API reference](api/index.md)
+- [API reference](api/semi-analytic.md)

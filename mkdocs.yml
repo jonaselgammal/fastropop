@@ -54,7 +54,6 @@ nav:
   - Quickstart: quickstart.md
   - Semi-Analytic Model: semi-analytic-model.md
   - API:
-      - Overview: api/index.md
       - Semi-Analytic Model: api/semi-analytic.md
       - Sampling and Spectra: api/spectra.md
       - Cosmology: api/cosmology.md
