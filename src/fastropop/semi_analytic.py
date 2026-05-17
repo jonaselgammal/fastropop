@@ -336,7 +336,7 @@ def binning(distM, distz, distlog10f, freqs=None, hc2_values=None, do_plot=True)
     nbins = 28
 
     bin_edges_linear = jnp.array(
-        [[(2 * i + 1) * (fminNG15/2) * s, (2 * i + 3) * fminNG15/2 * s] for i in range(nbins)]
+        [[(2 * i + 1) * (fminNG15 / 2) * s, (2 * i + 3) * fminNG15 / 2 * s] for i in range(nbins)]
     )
     bin_edges_log10 = jnp.log10(bin_edges_linear)
     bin_edges = jnp.concatenate((jnp.array([bin_edges_linear[0, 0]]), bin_edges_linear[:, 1]))

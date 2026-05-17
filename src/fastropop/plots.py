@@ -164,7 +164,7 @@ def plot_realizations(log10f, yvals, median, q_low, q_high, freqs=None, hc2_valu
         plt.plot(log10f[1:], realization[1:], color="C3", alpha=0.1)
 
     plt.fill_between(log10f[1:], q_low[1:], q_high[1:], color="C7", alpha=0.3, label="$68\\% C.I.$")
-    
+
     if hc2_values is not None and freqs is not None:
         plt.plot(np.log10(freqs), np.log10(hc2_values), "--", color="C0", label="log hc ref")
 
