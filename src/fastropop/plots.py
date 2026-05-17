@@ -32,7 +32,7 @@ def plot_binned_spectrum(spec, freqs=None, hc2_values=None):
         hc2_values = np.asarray(hc2_values)
 
     plt.figure(figsize=(8, 6))
-    plt.plot(spec[:, 0], np.log10(np.sqrt(spec[:, 1])), "o-", label="Binned Spectrum", color="C3")
+    plt.plot(spec[1:, 0], np.log10(np.sqrt(spec[1:, 1])), "o-", label="Binned Spectrum", color="C3")
 
     if freqs is not None and hc2_values is not None:
         plt.plot(np.log10(freqs), np.log10(hc2_values), "-", color="C0", label="log hc ref")
@@ -156,15 +156,15 @@ def plot_realizations(log10f, yvals, median, q_low, q_high, freqs=None, hc2_valu
         hc2_values = np.asarray(hc2_values)
 
     plt.figure(figsize=(8, 6))
-    plt.plot(log10f, median, "C3", lw=2, label="Average")
-    plt.plot(log10f, q_low, "C7", lw=2)
-    plt.plot(log10f, q_high, "C7", lw=2)
+    plt.plot(log10f[1:], median[1:], "C3", lw=2, label="Average")
+    plt.plot(log10f[1:], q_low[1:], "C7", lw=2)
+    plt.plot(log10f[1:], q_high[1:], "C7", lw=2)
 
     for realization in yvals:
-        plt.plot(log10f, realization, color="C3", alpha=0.1)
+        plt.plot(log10f[1:], realization[1:], color="C3", alpha=0.1)
 
-    plt.fill_between(log10f, q_low, q_high, color="C7", alpha=0.3, label="$68\\% C.I.$")
-
+    plt.fill_between(log10f[1:], q_low[1:], q_high[1:], color="C7", alpha=0.3, label="$68\\% C.I.$")
+    
     if hc2_values is not None and freqs is not None:
         plt.plot(np.log10(freqs), np.log10(hc2_values), "--", color="C0", label="log hc ref")
 

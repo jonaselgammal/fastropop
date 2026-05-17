@@ -333,10 +333,10 @@ def binning(distM, distz, distlog10f, freqs=None, hc2_values=None, do_plot=True)
         Array of shape ``(n_bins, 2)`` with columns
         ``[log10(f_bin_center), summed_bin_value]``.
     """
-    nbins = 14
+    nbins = 28
 
     bin_edges_linear = jnp.array(
-        [[(2 * i + 1) * fminNG15 * s, (2 * i + 3) * fminNG15 * s] for i in range(nbins)]
+        [[(2 * i + 1) * (fminNG15/2) * s, (2 * i + 3) * fminNG15/2 * s] for i in range(nbins)]
     )
     bin_edges_log10 = jnp.log10(bin_edges_linear)
     bin_edges = jnp.concatenate((jnp.array([bin_edges_linear[0, 0]]), bin_edges_linear[:, 1]))
@@ -351,7 +351,7 @@ def binning(distM, distz, distlog10f, freqs=None, hc2_values=None, do_plot=True)
         )
     )
 
-    Spec_y = binned_sum / (2 * fminNG15 * s)
+    Spec_y = binned_sum / (fminNG15 * s)
     Spec_x = bin_centers_log10
     Spec = jnp.column_stack((Spec_x, Spec_y))
 
@@ -1169,7 +1169,7 @@ class SemiAnalyticPopulation:
         log10f = tabreal[0, :, 0]
         yvals = tabreal[:, :, 1]
 
-        median = jnp.median(yvals, axis=0)
+        median = jnp.mean(yvals, axis=0)
         q_low = jnp.quantile(yvals, (1 - 0.68) / 2, axis=0)
         q_high = jnp.quantile(yvals, (1 + 0.68) / 2, axis=0)
 
