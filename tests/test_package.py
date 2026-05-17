@@ -121,16 +121,16 @@ def test_binning_uses_sky_averaged_strain_normalization() -> None:
     spec = binning(distM, distz, distlog10f, do_plot=False)
 
     expected = f_obs * h_average(distM[0] * fastropop.kg, f_obs / fastropop.s, distz[0]) ** 2
-    expected /= 2.0 * fastropop.fminNG15 * fastropop.s
+    expected /= fastropop.fminNG15 * fastropop.s
     wrong = f_obs * h(distM[0] * fastropop.kg, f_obs / fastropop.s, distz[0]) ** 2
-    wrong /= 2.0 * fastropop.fminNG15 * fastropop.s
+    wrong /= fastropop.fminNG15 * fastropop.s
 
     nonzero_bins = jnp.nonzero(spec[:, 1] > 0, size=1, fill_value=-1)[0]
     assert int(nonzero_bins[0]) == 1
-    assert jnp.allclose(spec[0, 1], expected)
-    assert jnp.isclose(spec[0, 1] / wrong, expected / wrong)
-    assert not jnp.isclose(spec[0, 1] / wrong, 1.0)
-    assert jnp.all(spec[1:, 1] == 0)
+    assert jnp.allclose(spec[1, 1], expected)
+    assert jnp.isclose(spec[1, 1] / wrong, expected / wrong)
+    assert not jnp.isclose(spec[1, 1] / wrong, 1.0)
+    assert jnp.all(spec[2:, 1] == 0)
 
 
 def test_notebook_reference_formulas_match_package() -> None:
