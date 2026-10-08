@@ -40,6 +40,14 @@ pre.model().total_rate(pre.params, grid)
       show_root_heading: true
       show_root_full_path: false
 
+::: fastropop.populations.eps.EPS
+    options:
+      heading_level: 2
+      members_order: source
+      merge_init_into_class: true
+      show_root_heading: true
+      show_root_full_path: false
+
 ::: fastropop.populations.tabulated.Tabulated
     options:
       heading_level: 2
