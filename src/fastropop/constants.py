@@ -27,15 +27,19 @@ yrinMKS = 3.15576e7 * s / yr
 pcinMKS = 3.08568e16 * m / pc
 
 # =============================================================================
-# Reference Cosmology Scales
+# Astrophysical Units
 # =============================================================================
-# Fixed background cosmology used by the semi-analytic model and standard
-# normalization used in GW energy-density conversions.
-hH0 = 0.7
-OmegaDM = 0.3
-OmegaLambda = 0.7
-Omegak = 0.0
-H0s = hH0 * 3.24078e-18 / s
+# The cosmology and population layers work in Msun, Mpc, yr and Hz. Exact values or
+# IAU nominal ones; the cosmological parameters themselves live on
+# :class:`fastropop.cosmology.Cosmology`, never here.
+C_MS = 299792458.0                                   # speed of light [m/s], exact
+C_KMS = C_MS / 1e3                                   # [km/s]
+MPC_M = 3.0856775814913673e22                        # Mpc [m], IAU 2012 (pc = 648000/pi au)
+YR_S = 365.25 * 86400.0                              # Julian year [s]
+GM_SUN = 1.3271244e20                                # nominal solar mass parameter [m^3 s^-2], IAU 2015
+MSUN_S = GM_SUN / C_MS**3                            # G Msun / c^3 [s]
+# critical density for h = 1, 3 (100 km/s/Mpc)^2 / (8 pi G), in Msun Mpc^-3
+RHO_CRIT_H2 = 3.0 * (1e5 / MPC_M) ** 2 * MPC_M**3 / (8.0 * 3.141592653589793 * GM_SUN)
 
 # Standard normalization used in GW energy-density conversions.
 H100 = 100.0 * 1000.0 / 3.085677581e22
@@ -65,15 +69,18 @@ default_betaz = 2.0
 default_z0 = 1.8
 
 __all__ = [
+    "C_KMS",
+    "C_MS",
+    "GM_SUN",
+    "MPC_M",
+    "MSUN_S",
+    "RHO_CRIT_H2",
+    "YR_S",
     "GMKS",
     "H100",
-    "H0s",
     "Mmax",
     "Mmin",
     "MsunMKS",
-    "OmegaDM",
-    "OmegaLambda",
-    "Omegak",
     "TNG15",
     "cMKS",
     "default_Mstar",
@@ -83,7 +90,6 @@ __all__ = [
     "default_z0",
     "fmaxNG15",
     "fminNG15",
-    "hH0",
     "kg",
     "m",
     "pc",

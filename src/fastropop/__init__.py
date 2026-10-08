@@ -9,6 +9,12 @@ _SEMI_ANALYTIC_EXPORTS = {
     "draw_parameters",
 }
 
+_COSMOLOGY_EXPORTS = {
+    "CONCORDANCE",
+    "Cosmology",
+    "PLANCK18",
+}
+
 _UNIT_EXPORTS = {
     "hc_to_omega",
     "omega_to_hc",
@@ -49,6 +55,7 @@ _CONSTANT_EXPORTS = {
 __all__ = [
     "__version__",
     *_SEMI_ANALYTIC_EXPORTS,
+    *_COSMOLOGY_EXPORTS,
     *_UNIT_EXPORTS,
     *_PLOT_EXPORTS,
     *_CONSTANT_EXPORTS,
@@ -61,6 +68,10 @@ def __getattr__(name: str):
         from . import semi_analytic
 
         return getattr(semi_analytic, name)
+    if name in _COSMOLOGY_EXPORTS:
+        from . import cosmology
+
+        return getattr(cosmology, name)
     if name in _UNIT_EXPORTS:
         from . import units
 

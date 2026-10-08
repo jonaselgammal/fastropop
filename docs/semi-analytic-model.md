@@ -23,12 +23,12 @@ The workflow in the code is:
 
 ## Cosmology
 
-The cosmology helpers are collected in `src/fastropop/cosmology.py`.
-
-The model uses
+The population takes its cosmology explicitly, as a `fastropop.cosmology.Cosmology` object
+(`SemiAnalyticPopulation(..., cosmology=...)`). It defaults to `CONCORDANCE` (h = 0.7, Ω_m = 0.3),
+the cosmology of fastropop 0.1. The model uses
 
 $$
-E(z) = \sqrt{\Omega_M (1+z)^3 + \Omega_k (1+z)^2 + \Omega_\Lambda}
+E(z) = \sqrt{\Omega_m (1+z)^3 + \Omega_r (1+z)^4 + \Omega_\Lambda}
 $$
 
 and
@@ -37,13 +37,13 @@ $$
 \frac{dt_r}{dz} = \frac{1}{H_0 (1+z) E(z)}.
 $$
 
-In the code these correspond to:
+In the code these correspond to methods of the cosmology object, in Mpc and yr:
 
-- `EE(z)` -> \(E(z)\)
-- `dtodz(z)` -> \(dt_r / dz\)
-- `Dc_interp(z)` -> comoving distance interpolation
-- `DL(z)` -> luminosity distance
-- `dVcdz(z)` -> \(dV_c / dz\)
+- `E(z)` -> \(E(z)\)
+- `dt_dz(z)` -> \(dt_r / dz\)
+- `comoving_distance(z)` -> \(D_c(z)\)
+- `luminosity_distance(z)` -> \(D_L(z)\)
+- `dVc_dz(z)` -> \(dV_c / dz\)
 
 ## Population Density in Mass and Redshift
 
@@ -260,9 +260,9 @@ The skymap code combines sampled binary parameters with random sky position, inc
 
 | Physics quantity | Equation | Code |
 | --- | --- | --- |
-| \(E(z)\) | cosmology factor | `EE` |
-| \(dt_r/dz\) | cosmic time-redshift relation | `dtodz` |
-| \(dV_c/dz\) | comoving volume element | `dVcdz` |
+| \(E(z)\) | cosmology factor | `cosmology.E` |
+| \(dt_r/dz\) | cosmic time-redshift relation | `cosmology.dt_dz` |
+| \(dV_c/dz\) | comoving volume element | `cosmology.dVc_dz` |
 | \(d^2 n / (dz \, dM)\) | semi-analytic merger density | `SemiAnalyticPopulation.d2ndzdM` |
 | \(d\ln f_r / dt_r\) | GW-driven inspiral | `dlnfdtr` |
 | \(d^3 N / (dz \, dM \, d\ln f)\) | source-count density | `SemiAnalyticPopulation.d3ndzdMdlnf` |

@@ -1,6 +1,7 @@
 """Semi-analytic SMBHB population modeling built around one concrete model."""
 
 import secrets
+from functools import partial
 
 import jax
 import jax.numpy as jnp
@@ -11,6 +12,8 @@ from scipy.interpolate import CubicSpline
 
 from .constants import (
     GMKS,
+    MPC_M,
+    YR_S,
     TNG15,
     Mmax,
     Mmin,
@@ -32,18 +35,7 @@ from .constants import (
     zmax,
     zmin,
 )
-from .cosmology import (
-    DL,
-    EE,
-    Dc_interp,
-    Dc_interp_numpy,
-    H0s,
-    OmegaDM,
-    Omegak,
-    OmegaLambda,
-    dtodz,
-    dVcdz,
-)
+from .cosmology import CONCORDANCE
 from .healpix_backend import accumulate_skymap_batch, init_skymaps, nside2npix, require_backend
 from .units import hc_to_omega, omega_to_hc
 
@@ -100,8 +92,8 @@ def dlnfdtr(M, f, z):
     )
 
 
-@jit
-def h(M, f, z):
+@partial(jit, static_argnames="cosmology")
+def h(M, f, z, cosmology=CONCORDANCE):
     r"""
     Compute the source strain amplitude without angular averaging.
 
@@ -113,20 +105,20 @@ def h(M, f, z):
     \left[f(1+z)\right]^{2/3},
     \]
 
-    with \(D_c(z)\) the comoving distance. This quantity is appropriate
+    with \(D_c(z)\) the comoving distance in ``cosmology``. This quantity is appropriate
     for source-level calculations before averaging over sky position and binary
     orientation.
     """
     return (
         (4 * jnp.pi ** (2 / 3))
         * (GMKS * M) ** (5 / 3)
-        / (cMKS**4 * Dc_interp(z))
+        / (cMKS**4 * cosmology.comoving_distance(z) * MPC_M)
         * (f * (1 + z)) ** (2 / 3)
     )
 
 
-@jit
-def h_average(M, f, z):
+@partial(jit, static_argnames="cosmology")
+def h_average(M, f, z, cosmology=CONCORDANCE):
     r"""
     Compute the sky-and-orientation averaged strain amplitude.
 
@@ -142,7 +134,7 @@ def h_average(M, f, z):
     return (
         (8 * jnp.pi ** (2 / 3) / jnp.sqrt(10))
         * (GMKS * M) ** (5 / 3)
-        / (cMKS**4 * Dc_interp(z))
+        / (cMKS**4 * cosmology.comoving_distance(z) * MPC_M)
         * (f * (1 + z)) ** (2 / 3)
     )
 
@@ -221,8 +213,8 @@ def draw_parameters(param_ranges=None, key=None):
     }
 
 
-@jit
-def compute_h_jitted(distM, distz, f_obs):
+@partial(jit, static_argnames="cosmology")
+def compute_h_jitted(distM, distz, f_obs, cosmology=CONCORDANCE):
     """
     JIT-compiled version to compute strain values.
 
@@ -240,10 +232,10 @@ def compute_h_jitted(distM, distz, f_obs):
     h_vals : jax array
         Computed strain values
     """
-    return h(distM * kg, f_obs, distz)
+    return h(distM * kg, f_obs, distz, cosmology)
 
 
-def compute_h(distM, distz, f_obs):
+def compute_h(distM, distz, f_obs, cosmology=CONCORDANCE):
     """
     Compute source strain amplitudes for sampled masses and redshifts.
 
@@ -262,11 +254,11 @@ def compute_h(distM, distz, f_obs):
     jax.Array
         Source strain amplitudes evaluated with `h`.
     """
-    return compute_h_jitted(jnp.asarray(distM), jnp.asarray(distz), f_obs)
+    return compute_h_jitted(jnp.asarray(distM), jnp.asarray(distz), f_obs, cosmology)
 
 
-@jit
-def binning_jitted(distM, distz, distlog10f, bin_edges):
+@partial(jit, static_argnames="cosmology")
+def binning_jitted(distM, distz, distlog10f, bin_edges, cosmology=CONCORDANCE):
     """
     JIT-compiled binning function.
 
@@ -287,7 +279,7 @@ def binning_jitted(distM, distz, distlog10f, bin_edges):
         Sum of f*h^2 in each bin
     """
     f_vals = 10**distlog10f
-    h_vals = h_average(distM * kg, f_vals / s, distz)
+    h_vals = h_average(distM * kg, f_vals / s, distz, cosmology)
     h2_vals = f_vals * h_vals**2
 
     # Use JAX's digitize for binning
@@ -301,7 +293,8 @@ def binning_jitted(distM, distz, distlog10f, bin_edges):
     return binned_sum
 
 
-def binning(distM, distz, distlog10f, freqs=None, hc2_values=None, do_plot=True):
+def binning(distM, distz, distlog10f, freqs=None, hc2_values=None, do_plot=True,
+            cosmology=CONCORDANCE):
     r"""
     Bin one Monte Carlo realization into PTA-style frequency bins.
 
@@ -395,7 +388,8 @@ class SemiAnalyticPopulation:
     """
 
     def __init__(
-        self, population_params=None, integration_limits=None, sampling_grids=None, PTA_params=None
+        self, population_params=None, integration_limits=None, sampling_grids=None, PTA_params=None,
+        cosmology=None,
     ):
         """
         Initialize one semi-analytic population model.
@@ -414,7 +408,11 @@ class SemiAnalyticPopulation:
         PTA_params : dict, optional
             PTA frequency-grid configuration with optional keys ``Tobs``,
             ``fmin``, ``fmax``, and ``Nfreqs``.
+        cosmology : fastropop.cosmology.Cosmology, optional
+            Background cosmology. Defaults to ``CONCORDANCE`` (h = 0.7, Omega_m = 0.3), the
+            cosmology of fastropop 0.1.
         """
+        self.cosmology = CONCORDANCE if cosmology is None else cosmology
         population_params = {} if population_params is None else population_params
         integration_limits = {} if integration_limits is None else integration_limits
         sampling_grids = {} if sampling_grids is None else sampling_grids
@@ -491,7 +489,7 @@ class SemiAnalyticPopulation:
             * self.n0
             * ((M / (1e7 * MsunMKS)) ** (-self.alphaM) * jnp.exp(-M / self.Mstar))
             * (((1 + z) ** self.betaz) * jnp.exp(-z / self.z0))
-            * dtodz(z)
+            * self.cosmology.dt_dz(z) * YR_S
         )
 
     def dndlog10M(self, M, zmin=0, zmax=5):
@@ -535,7 +533,9 @@ class SemiAnalyticPopulation:
         \frac{dV_c}{dz}.
         \]
         """
-        return self.d2ndzdM(z, M) * dlnfdtr(M, f, z) ** (-1) * (dtodz(z)) ** (-1) * dVcdz(z)
+        dtdz = self.cosmology.dt_dz(z) * YR_S
+        dVcdz = self.cosmology.dVc_dz(z) * MPC_M**3
+        return self.d2ndzdM(z, M) * dlnfdtr(M, f, z) ** (-1) * dtdz ** (-1) * dVcdz
 
     def _integrand(self, M, z, f):
         """Compute the integrand for the characteristic strain spectrum."""
@@ -551,13 +551,11 @@ class SemiAnalyticPopulation:
 
     def _dtodz_numpy(self, z):
         """NumPy scalar helper for SciPy integration paths."""
-        Ez = np.sqrt(OmegaDM * (1.0 + z) ** 3.0 + Omegak * (1.0 + z) ** 2.0 + OmegaLambda)
-        return 1.0 / (H0s * (1.0 + z) * Ez)
+        return self.cosmology.dt_dz_np(z) * YR_S
 
     def _dVcdz_numpy(self, z):
         """NumPy scalar helper for SciPy integration paths."""
-        Ez = np.sqrt(OmegaDM * (1.0 + z) ** 3.0 + Omegak * (1.0 + z) ** 2.0 + OmegaLambda)
-        return ((4.0 * np.pi * cMKS) / H0s) * Dc_interp_numpy(z) ** 2 / Ez
+        return self.cosmology.dVc_dz_np(z) * MPC_M**3
 
     def _d2ndzdM_numpy(self, z, M):
         """NumPy scalar helper for SciPy integration paths."""
@@ -1064,7 +1062,7 @@ class SemiAnalyticPopulation:
 
             # 2. Compute frequencies and amplitudes using JIT
             f_vals = 10**distlog10f
-            h_vals = compute_h_jitted(distM, distz, f_vals / s)
+            h_vals = compute_h_jitted(distM, distz, f_vals / s, self.cosmology)
 
             # 3. Generate random sky positions and orientations
             theta, phi, iota, phi0, psi = self._sample_sky_orientations(current_batch_size, key_sky)
@@ -1160,7 +1158,7 @@ class SemiAnalyticPopulation:
                 do_plot=False,
                 key=key_sample,
             )
-            Spec = binning(distM, distz, distlog10f, do_plot=False)
+            Spec = binning(distM, distz, distlog10f, do_plot=False, cosmology=self.cosmology)
             Spec_transformed = jnp.column_stack((Spec[:, 0], jnp.log10(jnp.sqrt(Spec[:, 1]))))
             tabreal.append(Spec_transformed)
 
@@ -1190,9 +1188,6 @@ class SemiAnalyticPopulation:
 
 
 __all__ = [
-    "DL",
-    "Dc_interp",
-    "EE",
     "GMKS",
     "Mmax",
     "Mmin",

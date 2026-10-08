@@ -6,6 +6,7 @@ import pytest
 
 import fastropop
 from fastropop import cosmology, healpix_backend, plots, units
+from fastropop.constants import MPC_M, YR_S
 from fastropop.semi_analytic import (
     SemiAnalyticPopulation,
     binning,
@@ -154,16 +155,19 @@ def test_notebook_reference_formulas_match_package() -> None:
         * jnp.exp(-M / params["Mstar"])
         * (1 + z) ** params["betaz"]
         * jnp.exp(-z / params["z0"])
-        * cosmology.dtodz(z)
+        * pop.cosmology.dt_dz(z) * YR_S
     )
     expected_h = (
         (8 * jnp.pi ** (2 / 3) / jnp.sqrt(10))
         * (fastropop.GMKS * M) ** (5 / 3)
-        / (fastropop.cMKS**4 * cosmology.Dc_interp(z))
+        / (fastropop.cMKS**4 * pop.cosmology.comoving_distance(z) * MPC_M)
         * (f * (1 + z)) ** (2 / 3)
     )
     expected_d3 = (
-        expected_d2 * dlnfdtr(M, f, z) ** (-1) * cosmology.dtodz(z) ** (-1) * cosmology.dVcdz(z)
+        expected_d2
+        * dlnfdtr(M, f, z) ** (-1)
+        * (pop.cosmology.dt_dz(z) * YR_S) ** (-1)
+        * pop.cosmology.dVc_dz(z) * MPC_M**3
     )
 
     assert jnp.allclose(pop.d2ndzdM(z, M), expected_d2)
