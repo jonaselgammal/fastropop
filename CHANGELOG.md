@@ -17,6 +17,15 @@ Developed on branch `lisa-band`.
 - **Added:** `cosmology=` arguments on `SemiAnalyticPopulation`, `h`, `h_average`, `compute_h` and `binning`. They default to `CONCORDANCE`, so 0.1 results are unchanged except for the constants below.
 - **New constants:** exact or IAU-nominal astrophysical units (`C_MS`, `C_KMS`, `MPC_M`, `YR_S`, `GM_SUN`, `MSUN_S`, `RHO_CRIT_H2`).
 
+### Population models
+
+- **`fastropop.grid`:** quadrature grids in named coordinates, (log10 Mc, q, z) or (log10 m1, log10 m2, z). The latter uses the trapezoid rule on the physical triangle m2 <= m1. The module also provides the exact coordinate conversions and Jacobian, and `component_masses`.
+- **`fastropop.populations`:** one contract for every model (`PopulationModel`). A model supplies a comoving merger-rate density in its native coordinates; the shared code turns it into the observer-frame intensity λ [yr⁻¹ per unit coordinate] on any grid, applies a support box, and handles parameters as dicts (`pack`/`unpack` for samplers).
+  - **`Phenomenological`:** the separable family (Sesana, Vecchio & Colacino 2008) with a power-law p(q). The mass part is a cutoff or bimodal; the redshift part is a power law, or Madau–Dickinson star formation convolved with delays.
+  - **`Tabulated`:** catalogue rows or a gridded intensity, as rate-conserving injections.
+  - **Presets** (`get_preset`): the fiducial, and the three Çalışkan et al. (2025) models with their published support.
+- **Removed:** `seed_models`, whose models are now presets.
+
 ### Numbers that moved
 
 - **The Hubble distance grows by 1.747e-6.** The cosmology now uses c = 299792458 m/s (was 2.99792e8) and the IAU Mpc (100 km/s/Mpc was 3.24078e-18 s⁻¹). Distances and strains move by that factor; dV_c/dz and d³n/(dz dM d ln f) move by its cube.

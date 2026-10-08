@@ -57,5 +57,6 @@ nav:
       - Semi-Analytic Model: api/semi-analytic.md
       - Sampling and Spectra: api/spectra.md
       - Cosmology: api/cosmology.md
+      - Populations and Grids: api/populations.md
       - Units: api/units.md
       - Plotting: api/plotting.md

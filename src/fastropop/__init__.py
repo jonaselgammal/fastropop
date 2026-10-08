@@ -15,6 +15,15 @@ _COSMOLOGY_EXPORTS = {
     "PLANCK18",
 }
 
+_GRID_EXPORTS = {"Grid"}
+
+_POPULATION_EXPORTS = {
+    "Phenomenological",
+    "PopulationModel",
+    "Tabulated",
+    "get_preset",
+}
+
 _UNIT_EXPORTS = {
     "hc_to_omega",
     "omega_to_hc",
@@ -56,6 +65,8 @@ __all__ = [
     "__version__",
     *_SEMI_ANALYTIC_EXPORTS,
     *_COSMOLOGY_EXPORTS,
+    *_GRID_EXPORTS,
+    *_POPULATION_EXPORTS,
     *_UNIT_EXPORTS,
     *_PLOT_EXPORTS,
     *_CONSTANT_EXPORTS,
@@ -72,6 +83,14 @@ def __getattr__(name: str):
         from . import cosmology
 
         return getattr(cosmology, name)
+    if name in _GRID_EXPORTS:
+        from . import grid
+
+        return getattr(grid, name)
+    if name in _POPULATION_EXPORTS:
+        from . import populations
+
+        return getattr(populations, name)
     if name in _UNIT_EXPORTS:
         from . import units
 
