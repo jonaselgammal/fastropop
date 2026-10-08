@@ -42,15 +42,29 @@ def test_girelli_peak():
 
 
 def test_black_hole_kernel_is_normalised(model):
-    """Wherever its mean lies inside the integration range: Girelli's fit extrapolated to tiny
-    halos at high z gives mean black-hole masses far below 1 Msun, which no mass grid reaches."""
+    """Each halo cell's kernel is p(log10 m | M_h) integrated over the cell, so over log10 m it
+    integrates to the cell width -- wherever its mean lies inside the range. Girelli's fit
+    extrapolated to tiny halos at high z gives mean black-hole masses far below 1 Msun, which no
+    mass grid reaches."""
     p = model.params()
-    lm = jnp.linspace(-5.0, 20.0, 5001)
+    lm = jnp.linspace(-5.0, 20.0, 20001)
     I = np.asarray(jnp.trapezoid(model._kernel(p, lm), lm, axis=1))
-    mean = p["a"] + p["b"] * (np.asarray(model._x) - 11.0)
-    inside = (mean > 0.0) & (mean < 15.0)
+    mu = p["a"] + p["b"] * (np.asarray(model._xe) - 11.0)
+    inside = (mu[:, :-1] > 0.0) & (mu[:, 1:] < 15.0)
     assert inside.mean() > 0.5
-    np.testing.assert_allclose(I[inside], 1.0, rtol=1e-10)
+    np.testing.assert_allclose(I[inside], model._dh, rtol=1e-9)
+
+
+def test_cell_kernel_matches_brute_force():
+    """The cell-integrated kernel equals the pointwise one integrated on a fine sub-grid."""
+    from fastropop.populations.eps import _cell_kernel
+    lm = jnp.linspace(2.0, 10.0, 41)[:, None]
+    for mu_lo, mu_hi, sig in ((5.0, 5.3, 0.2), (5.0, 5.02, 0.48), (4.0, 7.0, 0.3)):
+        x = jnp.linspace(0.0, 1.0, 400001)          # fine enough for the far tails, where u ~ 20
+        mu = mu_lo + (mu_hi - mu_lo) * x
+        brute = jnp.trapezoid(jnp.exp(-0.5 * ((lm - mu) / sig) ** 2) / (sig * jnp.sqrt(2 * jnp.pi)), x, axis=1) * 0.1
+        np.testing.assert_allclose(np.asarray(_cell_kernel(lm[:, 0], mu_lo, mu_hi, sig, 0.1)), np.asarray(brute),
+                                   rtol=1e-6, atol=1e-30)
 
 
 def test_fast_path_matches_point_path_and_scales_with_pBH(model):

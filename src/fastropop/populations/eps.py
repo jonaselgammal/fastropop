@@ -23,12 +23,24 @@ triangle m2 <= m1 is therefore twice the symmetric kernel.
 The halo tables depend only on the cosmology and are built once, at ``z_nodes``. A
 likelihood call computes the black-hole kernel at those nodes and contracts it with the
 halo table. Other redshifts are reached by interpolating log rate linearly in z.
+
+Halo-mass quadrature: cells of width ``step`` in log10 M_h. The halo merger rate (smooth in
+M_h) is taken at cell centres. The black-hole lognormal is integrated *exactly* over
+each cell, with its mean linear between the cell edges (a difference of error functions).
+Accuracy therefore does not depend on how the kernel's width, projected onto halo mass
+(sigma / (b dlog M*/dlog M_h), down to ~0.04 dex), compares with the cell size; a pointwise
+trapezoid on the same cells would. What remains is the midpoint rule for the halo merger
+rate, which is steep at high mass and high z. Against a converged 0.01-dex reference, at
+rho_th = 100 with ~100 events, the exact log-likelihood varies across the posterior
+region by 0.036 (std; max 0.065) at the default 0.1-dex cells, 0.009 at 0.05 and 0.15 at 0.2.
+Per-cell rates in rare corners can be off by more; they carry negligible rate.
 """
 
 from __future__ import annotations
 
 import jax.numpy as jnp
 import numpy as np
+from jax.scipy.special import erfc
 
 from ..cosmology import PLANCK18
 from ..grid import M1M2
@@ -56,6 +68,21 @@ def log10_mstar(log10_Mh, z, shmr=GIRELLI2020):
     return log10_Mh + np.log10(2.0 * A) - np.log10(x ** (-beta) + x**gam)
 
 
+def _cell_kernel(log10_m, mu_lo, mu_hi, sigma, dh):
+    """int over a halo cell of p(log10 m | M_h) dlog10 M_h, the mean running linearly from
+    mu_lo to mu_hi across the cell of width dh. Broadcasts log10_m against the mu arrays."""
+    u_lo, u_hi = (log10_m - mu_lo) / sigma, (log10_m - mu_hi) / sigma
+    a, b = jnp.maximum(u_lo, u_hi), jnp.minimum(u_lo, u_hi)
+    r2 = jnp.sqrt(2.0)
+    # Phi(a) - Phi(b) from the side where both tails are small, so it does not cancel
+    diff = jnp.where(b > 0, 0.5 * (erfc(b / r2) - erfc(a / r2)), 0.5 * (erfc(-a / r2) - erfc(-b / r2)))
+    dmu = jnp.abs(mu_hi - mu_lo)
+    u_mid = (log10_m - 0.5 * (mu_lo + mu_hi)) / sigma
+    flat = jnp.exp(-0.5 * u_mid * u_mid) / (sigma * jnp.sqrt(2.0 * jnp.pi))
+    small = dmu < 1e-3 * sigma
+    return dh * jnp.where(small, flat, diff / jnp.where(small, 1.0, dmu))
+
+
 def _loglerp(lo, hi, t):
     """Linear interpolation of log rate between two nodes; zero if either node is zero."""
     ok = (lo > 0) & (hi > 0)
@@ -73,8 +100,8 @@ class EPS(PopulationModel):
     z_nodes : array, optional
         Redshifts at which the halo tables are built (default 0.05 ... 25 in 100 steps).
     log10_Mh : tuple, optional
-        (min, max, step) of the halo-mass quadrature in log10 Msun (default 7 ... 16.5, 0.1).
-        With sigma >= 0.2 dex the trapezoid rule on the lognormal is accurate to < 1e-4.
+        (min, max, step) of the halo-mass cells in log10 Msun (default 6 ... 17, 0.1). Broad
+        kernels (large sigma, small b) reach halos below 1e7 Msun, hence the low edge.
     shmr : dict, optional
         Stellar-to-halo parameters (default :data:`GIRELLI2020`).
     """
@@ -84,7 +111,7 @@ class EPS(PopulationModel):
     defaults = dict(RV15_INACTIVE)
     labels = dict(LABELS)
 
-    def __init__(self, cosmology=PLANCK18, z_nodes=None, log10_Mh=(7.0, 16.5, 0.1), shmr=None, support=None):
+    def __init__(self, cosmology=PLANCK18, z_nodes=None, log10_Mh=(6.0, 17.0, 0.1), shmr=None, support=None):
         z_nodes = np.linspace(0.05, 25.0, 100) if z_nodes is None else np.asarray(z_nodes, dtype=float)
         sup = {"z": (float(z_nodes[0]), float(z_nodes[-1]))}
         sup.update(support or {})
@@ -92,13 +119,14 @@ class EPS(PopulationModel):
         self.shmr = dict(GIRELLI2020 if shmr is None else shmr)
         self.z_nodes = z_nodes
         lo, hi, step = log10_Mh
-        self.log10_Mh = np.arange(lo, hi + step / 2, step)
-        w = np.full(self.log10_Mh.size, step)
-        w[0] = w[-1] = step / 2
-        R = self.halo_merger_rate(self.log10_Mh, z_nodes)                      # (z, h, h)
-        # rate per dex^2 of BH mass = ln10^2 sum_h1 h2 w1 w2 R p1 p2 (p per dex; see module docstring)
-        self._A = jnp.asarray(_LN10**2 * R * w[None, :, None] * w[None, None, :])
-        self._x = jnp.asarray(np.stack([log10_mstar(self.log10_Mh, z, self.shmr) for z in z_nodes]))   # (z, h)
+        edges = np.arange(lo, hi + step / 2, step)
+        self.log10_Mh = 0.5 * (edges[1:] + edges[:-1])                          # cell centres
+        self._dh = float(step)
+        R = self.halo_merger_rate(self.log10_Mh, z_nodes)                      # (z, h, h) at centres
+        # rate per dex^2 of BH mass = ln10^2 sum_cells R(c1, c2) Kbar1 Kbar2, with Kbar the
+        # cell-integrated lognormal (per dex of m; see _cell_kernel and the module docstring)
+        self._A = jnp.asarray(_LN10**2 * R)
+        self._xe = jnp.asarray(np.stack([log10_mstar(edges, z, self.shmr) for z in z_nodes]))   # (z, h+1)
         self._zn = jnp.asarray(z_nodes)
 
     # ------------------------------------------------------------------ halo merger rate (fixed)
@@ -136,11 +164,15 @@ class EPS(PopulationModel):
         return out
 
     # ------------------------------------------------------------------ black holes (per call)
+    def _means(self, p, xe, z):
+        """Mean log10 m at the halo-cell edges."""
+        return p["a"] + p["b"] * (xe - 11.0) + p["gamma"] * jnp.log10(1.0 + z)[..., None]
+
     def _kernel(self, p, log10_m):
-        """p(log10 m | M_h, z) per dex at the halo-table nodes: shape (z, m, h)."""
-        mean = p["a"] + p["b"] * (self._x - 11.0) + p["gamma"] * jnp.log10(1.0 + self._zn)[:, None]
-        u = (jnp.asarray(log10_m)[None, :, None] - mean[:, None, :]) / p["sigma"]
-        return jnp.exp(-0.5 * u * u) / (p["sigma"] * jnp.sqrt(2.0 * jnp.pi))
+        """Cell-integrated p(log10 m | halo cell, z) at the halo-table nodes: shape (z, m, h)."""
+        mu = self._means(p, self._xe, self._zn)                                # (z, h+1)
+        lm = jnp.asarray(log10_m)[None, :, None]
+        return _cell_kernel(lm, mu[:, None, :-1], mu[:, None, 1:], p["sigma"], self._dh)
 
     def rate_at_nodes(self, params, log10_m1, log10_m2):
         """Comoving rate on the triangle m2 <= m1 [Mpc^-3 yr^-1 per dex^2] for the tensor
@@ -169,10 +201,10 @@ class EPS(PopulationModel):
             t = jnp.clip((zz - zn[i]) / (zn[i + 1] - zn[i]), 0.0, 1.0)
 
             def at(j):
-                mean = p["a"] + p["b"] * (self._x[j] - 11.0) + p["gamma"] * jnp.log10(1.0 + zn[j])[:, None]
-                k1 = jnp.exp(-0.5 * ((a1[:, None] - mean) / p["sigma"]) ** 2)
-                k2 = jnp.exp(-0.5 * ((a2[:, None] - mean) / p["sigma"]) ** 2)
-                return jnp.einsum("ph,phk,pk->p", k1, self._A[j], k2) / (2.0 * jnp.pi * p["sigma"] ** 2)
+                mu = self._means(p, self._xe[j], zn[j])                        # (points, h+1)
+                k1 = _cell_kernel(a1[:, None], mu[:, :-1], mu[:, 1:], p["sigma"], self._dh)
+                k2 = _cell_kernel(a2[:, None], mu[:, :-1], mu[:, 1:], p["sigma"], self._dh)
+                return jnp.einsum("ph,phk,pk->p", k1, self._A[j], k2)
 
             return jnp.where(a2 <= a1, _loglerp(at(i), at(i + 1), t), 0.0)
 
