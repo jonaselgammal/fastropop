@@ -22,7 +22,10 @@ triangle m2 <= m1 is therefore twice the symmetric kernel.
 
 The halo tables depend only on the cosmology and are built once, at ``z_nodes``. A
 likelihood call computes the black-hole kernel at those nodes and contracts it with the
-halo table. Other redshifts are reached by interpolating log rate linearly in z.
+halo table. Other redshifts are reached by interpolating log rate linearly in z. On a grid
+the mass points are the same at every redshift, so the contraction runs once per halo
+node for the grid's mass points: a tensor product on (log10 m1, log10 m2) grids, the
+(m1, m2) pairs of the mesh on other grids. Arbitrary points take the point-wise path.
 
 Halo-mass quadrature: cells of width ``step`` in log10 M_h. The halo merger rate (smooth in
 M_h) is taken at cell centres. The black-hole lognormal is integrated *exactly* over
@@ -43,7 +46,7 @@ import numpy as np
 from jax.scipy.special import erfc
 
 from ..cosmology import PLANCK18
-from ..grid import M1M2
+from ..grid import M1M2, convert, jacobian
 from .base import PopulationModel
 
 _LN10 = float(np.log(10.0))
@@ -182,6 +185,13 @@ class EPS(PopulationModel):
         tri = jnp.asarray(log10_m2)[None, :] <= jnp.asarray(log10_m1)[:, None]
         return 2.0 * 10.0 ** params["log10_pBH"] * jnp.where(tri[None], L, 0.0)
 
+    def rate_at_pairs(self, params, log10_m1, log10_m2):
+        """Comoving rate [Mpc^-3 yr^-1 per dex^2] at the mass pairs (``log10_m1[i]``,
+        ``log10_m2[i]``) at every ``z_nodes``: shape (z, pairs). Zero where m2 > m1."""
+        l1, l2 = jnp.asarray(log10_m1, dtype=float), jnp.asarray(log10_m2, dtype=float)
+        L = jnp.einsum("zph,zhk,zpk->zp", self._kernel(params, l1), self._A, self._kernel(params, l2))
+        return 2.0 * 10.0 ** params["log10_pBH"] * jnp.where(l2 <= l1, L, 0.0)
+
     def comoving_rate(self, params, log10_m1, log10_m2, z, chunk=512):
         """At arbitrary points: the kernel contracted point by point at the two bracketing
         redshift nodes, then log-linear in z. Evaluated in chunks of ``chunk`` points, so
@@ -212,19 +222,24 @@ class EPS(PopulationModel):
         return (2.0 * 10.0 ** p["log10_pBH"] * r).reshape(shape)
 
     def intensity(self, params, grid):
-        """On (log10 m1, log10 m2, z) grids: the kernel contraction on the mass axes at the halo
-        nodes, then log-linear in z onto the grid's redshifts. Other grids take the
-        point-wise path of the base class."""
-        if grid.coords != M1M2:
-            return super().intensity(params, grid)
-        lm1, lm2, zg = (np.asarray(a) for a in grid.axes)
-        L = self.rate_at_nodes(params, lm1, lm2)                                # (zn, m1, m2)
+        """The kernel contracted at the halo nodes for the grid's mass points (a tensor product
+        on (log10 m1, log10 m2) grids, the mesh's (m1, m2) pairs otherwise), then log-linear
+        in z onto the grid's redshifts."""
+        x1, x2, zg = (np.asarray(a) for a in grid.axes)
+        if grid.coords == M1M2:
+            L = self.rate_at_nodes(params, x1, x2)                              # (zn, n1, n2)
+            jac = 1.0
+        else:
+            X1, X2 = np.meshgrid(x1, x2, indexing="ij")
+            l1, l2 = convert(grid.coords, M1M2, X1, X2)
+            L = self.rate_at_pairs(params, l1.ravel(), l2.ravel()).reshape((-1,) + X1.shape)
+            jac = jacobian(M1M2, grid.coords, X1, X2)[..., None]               # per unit grid coordinates
         zn = np.asarray(self.z_nodes)
         i = np.clip(np.searchsorted(zn, zg) - 1, 0, zn.size - 2)
         t = np.clip((zg - zn[i]) / (zn[i + 1] - zn[i]), 0.0, 1.0)
         Lz = _loglerp(L[i], L[i + 1], jnp.asarray(t)[:, None, None])
         z = jnp.asarray(zg)
-        lam = jnp.moveaxis(Lz, 0, -1) * (self.cosmology.dVc_dz(z) / (1.0 + z))[None, None, :]
+        lam = jnp.moveaxis(Lz, 0, -1) * jac * (self.cosmology.dVc_dz(z) / (1.0 + z))[None, None, :]
         lam = lam * self._inside(grid.coords, *grid.mesh())          # the whole support box, as rate_density does
         return jnp.where(grid.valid, lam, 0.0)
 

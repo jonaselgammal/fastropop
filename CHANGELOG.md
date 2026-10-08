@@ -24,7 +24,8 @@ Developed on branch `lisa-band`.
   - **`Phenomenological`:** the separable family (Sesana, Vecchio & Colacino 2008) with a power-law p(q). The mass part is a cutoff or bimodal; the redshift part is a power law, or Madau–Dickinson star formation convolved with delays.
   - **`EPS`:** black-hole mergers from extended Press–Schechter halo mergers (Ellis et al. 2024, Eqs. 3–4).
     - **Construction:** Press–Schechter × Lacey–Cole halo merger rate from the cosmology's linear theory, then the Girelli et al. (2020) stellar-to-halo relation (Table 3 reference case), then a log-normal black-hole–stellar mass relation.
-    - **Free parameters:** log10 p_BH, a, b, σ, γ. Native coordinates (log10 m1, log10 m2, z), with a fast path on those grids.
+    - **Free parameters:** log10 p_BH, a, b, σ, γ. Native coordinates (log10 m1, log10 m2, z).
+    - **Fast on any grid:** the halo table is contracted once per redshift node for the grid's mass points — a tensor product on (log10 m1, log10 m2) grids, the mesh's (m1, m2) pairs on (log10 Mc, q) grids — then interpolated in z.
     - **Validation:** given identical inputs, it reproduces the KBFI implementation to 2.6e-4 at z = 0.5–10.
   - **`Tabulated`:** catalogue rows or a gridded intensity, as rate-conserving injections.
   - **Presets** (`get_preset`): the fiducial, and the three Çalışkan et al. (2025) models with their published support.

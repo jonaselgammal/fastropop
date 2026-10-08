@@ -80,6 +80,18 @@ def test_fast_path_matches_point_path_and_scales_with_pBH(model):
     np.testing.assert_allclose(lam2[sel], 0.1 * lam[sel], rtol=1e-12)
 
 
+def test_pair_path_matches_point_path(model):
+    """On a (log10 Mc, q, z) grid the intensity contracts the kernel at the mesh's (m1, m2) pairs."""
+    g = Grid.mcq(n_mc=23, n_q=9, n_z=31, log10_mc=(2.3, 9.5), z=(0.1, 22.0))     # z off the halo nodes
+    p = model.params()
+    lam = np.asarray(model.intensity(p, g))
+    lmc, q, z = (np.broadcast_to(np.asarray(a), g.shape) for a in g.mesh())
+    lam_pts = np.asarray(model.intensity_at(p, *(jnp.asarray(a.ravel()) for a in (lmc, q, z)))).reshape(g.shape)
+    sel = lam_pts > 1e-250
+    assert sel.mean() > 0.9
+    np.testing.assert_allclose(lam[sel], lam_pts[sel], rtol=1e-11)
+
+
 def test_rate_is_the_same_in_both_coordinate_systems(model):
     p = model.params()
     gm = Grid.m1m2(n_m=161, n_z=60, log10_m=(3.0, 9.0), z=(0.1, 15.0))
