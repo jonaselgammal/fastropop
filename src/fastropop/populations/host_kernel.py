@@ -19,10 +19,16 @@ A subclass sets ``self._xe`` (host-cell edges, shape (z, h+1), in the coordinate
 linear in), ``self._dh``, ``self.z_nodes`` / ``self._zn``, and implements :meth:`_means`,
 :meth:`_sigma`, :meth:`_table` and :meth:`_scale`. The table and the kernel are evaluated at
 the redshift nodes; other redshifts are reached by interpolating log rate linearly in z.
+
+Grids in other coordinates, e.g. (log10 Mc, q, z), are evaluated at the mesh's (m1, m2) pairs.
+Exact, but each pair needs its own contraction. :meth:`use_native_interpolation` instead
+contracts once on a fine (m1, m2) tensor grid and interpolates log-bilinearly onto the pairs
+(3-13x fewer operations; its accuracy is set by ``step``).
 """
 
 from __future__ import annotations
 
+import jax
 import jax.numpy as jnp
 import numpy as np
 from jax.scipy.special import erfc
@@ -75,6 +81,47 @@ class HostKernelModel(PopulationModel):
 
     def _scale(self, p):
         return 1.0
+
+    # ------------------------------------------------------------------ evaluation paths
+    _native_step = None
+
+    def use_native_interpolation(self, step=0.05):
+        """Evaluate non-(m1, m2) grids by log-bilinear interpolation from an (m1, m2) tensor
+        grid of spacing ``step`` [dex] (None: exact pair path). Returns self."""
+        self._native_step = None if step is None else float(step)
+        self._interp_cache = {}
+        return self
+
+    def _pair_interpolation(self, l1, l2):
+        """Tensor nodes covering the pairs, and the bilinear stencil of every pair (cached)."""
+        key = (l1.shape, float(l1.ravel()[0]), float(l1.ravel()[-1]), float(l2.ravel()[0]), float(l2.ravel()[-1]))
+        if key not in self._interp_cache:
+            h = self._native_step
+            lo = np.floor(min(l1.min(), l2.min()) / h) * h - h
+            hi = np.ceil(max(l1.max(), l2.max()) / h) * h + h
+            nodes = np.arange(lo, hi + h / 2, h)
+            u, v = (l1.ravel() - lo) / h, (l2.ravel() - lo) / h
+            i, j = np.floor(u).astype(int), np.floor(v).astype(int)
+            self._interp_cache[key] = (jnp.asarray(nodes), i, j, jnp.asarray(u - i), jnp.asarray(v - j))
+        return self._interp_cache[key]
+
+    def _symmetric_rate(self, params, log10_m):
+        """K A K^T on the tensor product of ``log10_m`` with itself, at every redshift node,
+        before the m2 <= m1 restriction and the factor 2 s: shape (z, m, m)."""
+        K = self._kernel(params, log10_m)
+        return jnp.einsum("zmh,zhk,znk->zmn", K, self._table(params), K)
+
+    def _rate_at_pairs_interpolated(self, params, l1, l2):
+        nodes, i, j, tu, tv = self._pair_interpolation(np.asarray(l1), np.asarray(l2))
+        L = self._symmetric_rate(params, nodes)
+        c = [L[:, i, j], L[:, i + 1, j], L[:, i, j + 1], L[:, i + 1, j + 1]]
+        w = [(1 - tu) * (1 - tv), tu * (1 - tv), (1 - tu) * tv, tu * tv]
+        ok = (c[0] > 0) & (c[1] > 0) & (c[2] > 0) & (c[3] > 0)
+        safe = [jnp.where(ok, x, 1.0) for x in c]
+        logi = jnp.exp(sum(wk * jnp.log(xk) for wk, xk in zip(w, safe)))        # log-bilinear
+        lin = sum(wk * xk for wk, xk in zip(w, c))                                 # where a corner is empty
+        Lp = jnp.where(ok, logi, lin)
+        return 2.0 * self._scale(params) * jnp.where(jnp.asarray(l2.ravel() <= l1.ravel()), Lp, 0.0)
 
     # ------------------------------------------------------------------ shared
     def _kernel(self, p, log10_m):
@@ -138,8 +185,13 @@ class HostKernelModel(PopulationModel):
             jac = 1.0
         else:
             X1, X2 = np.meshgrid(x1, x2, indexing="ij")
-            l1, l2 = convert(grid.coords, M1M2, X1, X2)
-            L = self.rate_at_pairs(params, l1.ravel(), l2.ravel()).reshape((-1,) + X1.shape)
+            with jax.ensure_compile_time_eval():          # the grid is static: concrete arrays under jit
+                l1, l2 = (np.asarray(a) for a in convert(grid.coords, M1M2, X1, X2))
+            if self._native_step is None:
+                L = self.rate_at_pairs(params, l1.ravel(), l2.ravel())
+            else:
+                L = self._rate_at_pairs_interpolated(params, l1, l2)
+            L = L.reshape((-1,) + X1.shape)
             jac = jacobian(M1M2, grid.coords, X1, X2)[..., None]               # per unit grid coordinates
         zn = np.asarray(self.z_nodes)
         i = np.clip(np.searchsorted(zn, zg) - 1, 0, zn.size - 2)

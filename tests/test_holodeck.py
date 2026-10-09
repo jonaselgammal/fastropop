@@ -65,3 +65,17 @@ def test_scatter_conserves_the_rate():
     g = Grid.m1m2(n_m=241, n_z=30, log10_m=(-1.0, 11.0), z=(0.05, 3.0))
     r = [float(m.total_rate(m.params(mmb_scatter_dex=s), g)) for s in (0.05, 0.3, 0.6)]
     assert r[1] == pytest.approx(r[0], rel=5e-3) and r[2] == pytest.approx(r[0], rel=5e-3)
+
+
+def test_native_interpolation_matches_pair_path():
+    """(log10 Mc, q, z) grids from a 0.05-dex (m1, m2) tensor grid: rate-weighted error below 0.5%
+    (EPS ~1e-5; holodeck ~0.2%, the geometric-mean bias of log interpolation at small scatter)."""
+    from fastropop.populations import EPS
+    g = Grid.mcq(n_mc=40, n_q=12, n_z=20, log10_mc=(2.5, 9.5), z=(0.1, 10.0))
+    W = np.asarray(g.W)
+    for exact, fast, p in ((EPS(PLANCK18), EPS(PLANCK18).use_native_interpolation(0.05), {}),
+                           (Holodeck(PLANCK18), Holodeck(PLANCK18).use_native_interpolation(0.05),
+                            dict(gsmf_phi0_log10=-2.2, hard_time=1.0))):
+        pp = exact.params(**p)
+        le, lf = np.asarray(exact.intensity(pp, g)), np.asarray(fast.intensity(pp, g))
+        assert np.sum(np.abs(lf - le) * W) / np.sum(le * W) < 5e-3
