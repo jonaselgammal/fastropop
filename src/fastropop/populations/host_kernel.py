@@ -102,7 +102,7 @@ class HostKernelModel(PopulationModel):
             nodes = np.arange(lo, hi + h / 2, h)
             u, v = (l1.ravel() - lo) / h, (l2.ravel() - lo) / h
             i, j = np.floor(u).astype(int), np.floor(v).astype(int)
-            self._interp_cache[key] = (jnp.asarray(nodes), i, j, jnp.asarray(u - i), jnp.asarray(v - j))
+            self._interp_cache[key] = (nodes, i, j, u - i, v - j)     # NumPy: constants under any trace
         return self._interp_cache[key]
 
     def _symmetric_rate(self, params, log10_m):

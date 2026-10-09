@@ -79,3 +79,14 @@ def test_native_interpolation_matches_pair_path():
         pp = exact.params(**p)
         le, lf = np.asarray(exact.intensity(pp, g)), np.asarray(fast.intensity(pp, g))
         assert np.sum(np.abs(lf - le) * W) / np.sum(le * W) < 5e-3
+
+
+def test_interpolated_model_is_reusable_across_traces():
+    """The cached interpolation stencil must hold constants, not tracers of the first jit."""
+    import jax
+    m = Holodeck(PLANCK18).use_native_interpolation(0.05)
+    g = Grid.mcq(n_mc=20, n_q=6, n_z=10, log10_mc=(3.0, 9.0), z=(0.1, 5.0))
+    th = jnp.asarray(m.pack(m.params()))
+    a = jax.jit(lambda t: m.intensity(m.unpack(t), g).sum())(th)
+    b = jax.jit(lambda t: 2.0 * m.intensity(m.unpack(t), g).sum())(th)      # a second, different trace
+    assert float(b) == pytest.approx(2.0 * float(a), rel=1e-12)
