@@ -27,6 +27,10 @@ Developed on branch `lisa-band`.
     - **Free parameters:** log10 p_BH, a, b, σ, γ. Native coordinates (log10 m1, log10 m2, z).
     - **Fast on any grid:** the halo table is contracted once per redshift node for the grid's mass points — a tensor product on (log10 m1, log10 m2) grids, the mesh's (m1, m2) pairs on (log10 Mc, q) grids — then interpolated in z.
     - **Validation:** given identical inputs, it reproduces the KBFI implementation to 2.6e-4 at z = 0.5–10.
+  - **`Holodeck`:** black-hole coalescences from holodeck's "classic Phenom" semi-analytic model (NANOGrav 15-yr). It combines a Schechter stellar mass function, a power-law galaxy pair fraction and merger time, a log-normal M_BH–M_bulge relation, and coalescence a fixed time τ_f after the galaxy merger. Free parameters: ψ₀, m_ψ,0, μ, ε_μ, τ_f.
+    - **Validation against holodeck v1.6 at zero scatter:** the total rate agrees to 0.5% and the coalescence-redshift distribution to < 1%.
+    - **Scatter:** applied as an exact convolution over stellar mass. holodeck's numerical redistribution does not conserve the binary count.
+  - **`HostKernelModel`:** the shared base of EPS and Holodeck. A host-pair rate table is contracted with a log-normal black-hole–host kernel integrated over host cells, with tensor, pair and point-wise paths.
   - **`Tabulated`:** catalogue rows or a gridded intensity, as rate-conserving injections.
   - **Presets** (`get_preset`): the fiducial, and the three Çalışkan et al. (2025) models with their published support.
 - **Removed:** `seed_models`, whose models are now presets.
