@@ -48,7 +48,7 @@ from .host_kernel import HostKernelModel
 
 _LN10 = float(np.log(10.0))
 
-LABELS = {"gsmf_phi0_log10": r"$\psi_0$", "gsmf_mchar0_log10": r"$m_{\psi,0}$", "mmb_mamp_log10": r"$\mu$",
+LABELS = {"gsmf_phi0_log10": r"$\psi_0$", "gsmf_mchar0_log10": r"$m_{\psi,0}$", "mmb_mamp_log10": r"$\mu_{\rm b}$",
           "mmb_scatter_dex": r"$\epsilon_\mu$", "hard_time": r"$\tau_f$ [Gyr]"}
 # holodeck v1.6 librarian/param_spaces_classic.py, _PS_Classic_Phenom.DEFAULTS
 HOLODECK_DEFAULTS = dict(gsmf_phi0_log10=-2.77, gsmf_mchar0_log10=11.24, mmb_mamp_log10=8.69,
